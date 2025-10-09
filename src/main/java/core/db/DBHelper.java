@@ -79,9 +79,9 @@ public class DBHelper {
     }
 
     public void close() {
-        if (dataSource instanceof HikariDataSource hikariDataSource) {
+        if (dataSource instanceof HikariDataSource) {
             LoggerUtil.getLogger(DBHelper.class).info("Closing database connection pool");
-            hikariDataSource.close();
+            ((HikariDataSource) dataSource).close();
         }
     }
 }

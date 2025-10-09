@@ -3,6 +3,8 @@
 Biblioteca centralizada de utilidades para los microservicios de pruebas de QA. Provee configuración compartida,
 logs, integración con Jira/Xray, Jenkins y acceso a base de datos.
 
+> **Requisito**: compilar y ejecutar con Java 17.
+
 ## Módulos principales
 
 - **ConfigManager**: carga propiedades desde archivos `application.properties`, variables de entorno y parámetros `-D`.
