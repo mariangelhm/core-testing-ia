@@ -55,6 +55,45 @@ podés publicarlo en tu `~/.m2` local con Gradle y luego resolverlo desde ahí.
 Cuando hagas cambios en `qa-core`, incrementá la versión en `build.gradle` y volvé a ejecutar
 `publishToMavenLocal` para que el servicio consumidor obtenga la nueva build.
 
+### Publicar en GitHub Packages
+
+Si querés tener el artefacto disponible en línea, podés subirlo a GitHub Packages.
+
+1. Creá un token personal con permisos `write:packages`, `read:packages` y `repo`.
+2. Configurá tus credenciales en `~/.gradle/gradle.properties` o como variables de entorno:
+
+   ```properties
+   gpr.user=TU_USUARIO
+   gpr.key=TOKEN_GENERADO
+   ```
+
+   o bien exportá `GITHUB_USERNAME`/`GITHUB_TOKEN` antes de publicar.
+3. Editá `build.gradle` reemplazando `OWNER/REPO` por la organización y repositorio que alojarán el paquete.
+4. Ejecutá la publicación:
+
+   ```bash
+   gradle clean publish
+   # o ./gradlew clean publish
+   ```
+
+   Gradle subirá el JAR a `https://maven.pkg.github.com/OWNER/REPO`.
+5. En los proyectos consumidores agregá el repositorio de GitHub con credenciales:
+
+   ```groovy
+   repositories {
+       maven {
+           url = uri("https://maven.pkg.github.com/OWNER/REPO")
+           credentials {
+               username = findProperty("gpr.user") ?: System.getenv("GITHUB_USERNAME")
+               password = findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+           }
+       }
+       mavenCentral()
+   }
+   ```
+
+   Luego declarás la dependencia normalmente con `implementation 'com.company.qa:qa-core:1.0.0'`.
+
 ### Configuración
 
 Definir el entorno con `-Dqa.env=qa` o variable `ENV`. Los archivos `application-<env>.properties`
