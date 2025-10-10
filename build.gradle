@@ -1,0 +1,94 @@
+import java.util.Locale
+
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+    withJavadocJar()
+}
+
+def verifyJava17 = tasks.register("verifyJava17") {
+    doLast {
+        if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_17)) {
+            throw new GradleException("qa-core requiere JDK 17 o superior. JAVA_HOME actual: ${System.getProperty('java.home')}")
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    dependsOn(verifyJava17)
+}
+
+group = 'com.company.qa'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api 'org.slf4j:slf4j-api:2.0.12'
+    implementation 'ch.qos.logback:logback-classic:1.4.14'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.16.1'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.16.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.zaxxer:HikariCP:5.1.0'
+    implementation 'org.postgresql:postgresql:42.7.1'
+    implementation 'io.rest-assured:rest-assured:5.4.0'
+    implementation 'io.rest-assured:json-schema-validator:5.4.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+}
+
+tasks.withType(Test) {
+    useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        def githubOwner = project.findProperty("gpr.owner") ?: System.getenv("GITHUB_OWNER")
+        def githubRepo = project.findProperty("gpr.repo") ?: System.getenv("GITHUB_REPO")
+        if (!githubRepo) {
+            def repositoryEnv = System.getenv("GITHUB_REPOSITORY")
+            if (repositoryEnv) {
+                if (repositoryEnv.contains("/")) {
+                    def parts = repositoryEnv.split("/", 2)
+                    githubRepo = parts[1]
+                    if (!githubOwner) {
+                        githubOwner = parts[0]
+                    }
+                } else {
+                    githubRepo = repositoryEnv
+                }
+            }
+        }
+        def publishRequested = gradle.startParameter.taskNames.any { it.toLowerCase(Locale.ROOT).contains("publish") }
+        if (!githubOwner || !githubRepo) {
+            if (publishRequested) {
+                throw new GradleException("Configura gpr.owner/gpr.repo o exporta GITHUB_OWNER y GITHUB_REPOSITORY antes de publicar qa-core")
+            } else {
+                logger.info("GitHub Packages repository not configured; set gpr.owner/gpr.repo to enable publishing.")
+                return
+            }
+        }
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/${githubOwner}/${githubRepo}")
+            credentials {
+                username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_USERNAME") ?: githubOwner
+                password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+}
