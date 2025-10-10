@@ -252,8 +252,20 @@ El `build.gradle` ya incluye el bloque `publishing` apuntando a GitHub Packages.
 gradle clean publish
 ```
 
+> ℹ️ **Importante:** El comando anterior debe ejecutarse dentro del repositorio de `qa-core`. Si estás en un
+> proyecto consumidor (por ejemplo, `ms-testing-ia`) que sólo utiliza la librería, no habrá una tarea `publish`
+> a menos que ese proyecto también aplique el plugin `maven-publish`. En esos casos simplemente declarás la
+> dependencia y ejecutás tus pruebas; no es necesario publicar nada desde el servicio consumidor.
+
 Gradle subirá el artefacto firmado con tus credenciales. Luego, los proyectos consumidores sólo deben
 agregar el repositorio y la dependencia como se mostró arriba.
+
+### Solución de problemas comunes
+
+- **`Task 'publish' not found`**: verificá que estás ejecutando el comando en la carpeta raíz de `qa-core`.
+  Podés confirmar las tareas disponibles con `./gradlew tasks`. Si realmente necesitás publicar otro
+  proyecto, asegurate de incluir en su `build.gradle` el plugin `maven-publish` y configurar un bloque
+  `publishing` similar al de este repositorio.
 
 ## Versionado y buenas prácticas
 
