@@ -1,0 +1,195 @@
+package core.db;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import javax.sql.DataSource;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
+import core.errors.DBException;
+import core.log.LoggerUtil;
+
+/**
+ * Simplified database helper powered by HikariCP to share connection logic across services.
+ */
+public class DBHelper implements AutoCloseable {
+
+    private static final org.slf4j.Logger LOGGER = LoggerUtil.getLogger(DBHelper.class);
+
+    private final DataSource dataSource;
+
+    public DBHelper(String jdbcUrl, String username, String password) {
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(jdbcUrl);
+        config.setUsername(username);
+        config.setPassword(password);
+        config.setMaximumPoolSize(5);
+        config.setPoolName("qa-core-pool");
+        this.dataSource = new HikariDataSource(config);
+    }
+
+    public DBHelper(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
+    public List<Map<String, Object>> query(String sql, Object... params) {
+        return select(sql, params);
+    }
+
+    /**
+     * Executes a {@code SELECT} returning all rows as a list of column-name/value maps.
+     */
+    public List<Map<String, Object>> select(String sql, Object... params) {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = prepareStatement(connection, sql, params);
+             ResultSet resultSet = statement.executeQuery()) {
+            List<Map<String, Object>> results = new ArrayList<>();
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            int columnCount = metaData.getColumnCount();
+            while (resultSet.next()) {
+                Map<String, Object> row = new HashMap<>();
+                for (int i = 1; i <= columnCount; i++) {
+                    row.put(metaData.getColumnLabel(i), resultSet.getObject(i));
+                }
+                results.add(row);
+            }
+            return results;
+        } catch (SQLException e) {
+            throw new DBException("Error executing query", e);
+        }
+    }
+
+    /**
+     * Returns the first row of a {@code SELECT} or {@code null} when no data matches the query.
+     */
+    public Map<String, Object> selectFirst(String sql, Object... params) {
+        List<Map<String, Object>> results = select(sql, params);
+        if (results.isEmpty()) {
+            return null;
+        }
+        return results.get(0);
+    }
+
+    /**
+     * Returns the first column of the first row from a {@code SELECT}. Useful for scalar queries.
+     */
+    public <T> T selectValue(String sql, Object... params) {
+        Map<String, Object> firstRow = selectFirst(sql, params);
+        if (firstRow == null) {
+            return null;
+        }
+        if (firstRow.isEmpty()) {
+            return null;
+        }
+        @SuppressWarnings("unchecked")
+        T value = (T) firstRow.values().iterator().next();
+        return value;
+    }
+
+    /**
+     * Extracts a value from a materialised result set, enforcing bounds and column presence.
+     */
+    public Object extractValue(List<Map<String, Object>> rows, int rowIndex, String column) {
+        if (rows == null || rows.isEmpty()) {
+            throw new DBException("Result set is empty; cannot extract value");
+        }
+        if (rowIndex < 0 || rowIndex >= rows.size()) {
+            throw new DBException("Row index " + rowIndex + " is out of range (size " + rows.size() + ")");
+        }
+        Map<String, Object> row = rows.get(rowIndex);
+        if (!row.containsKey(column)) {
+            throw new DBException("Column '" + column + "' not present in result set");
+        }
+        return row.get(column);
+    }
+
+    public int execute(String sql, Object... params) {
+        return update(sql, params);
+    }
+
+    /**
+     * Executes an {@code INSERT}, {@code UPDATE} or {@code DELETE} statement returning the affected row count.
+     */
+    public int update(String sql, Object... params) {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = prepareStatement(connection, sql, params)) {
+            return statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new DBException("Error executing statement", e);
+        }
+    }
+
+    /**
+     * Verifies the first value returned by a query against the expected value.
+     */
+    public boolean validateValueEquals(String sql, Object expected, Object... params) {
+        Object actual = selectValue(sql, params);
+        boolean matches = Objects.equals(expected, actual);
+        if (!matches) {
+            LOGGER.warn("Validation failed for SQL '{}'. Expected: {}, Actual: {}", sql, expected, actual);
+        } else {
+            LOGGER.info("Validation passed for SQL '{}'. Value: {}", sql, actual);
+        }
+        return matches;
+    }
+
+    /**
+     * Throws a {@link DBException} if the value returned by the query does not match the expectation.
+     */
+    public void assertValueEquals(String sql, Object expected, Object... params) {
+        if (!validateValueEquals(sql, expected, params)) {
+            throw new DBException("Expected value '" + expected + "' does not match query result");
+        }
+    }
+
+    /**
+     * Returns {@code true} when a {@code SELECT} yields no rows.
+     */
+    public boolean isEmpty(String sql, Object... params) {
+        List<Map<String, Object>> results = select(sql, params);
+        boolean empty = results.isEmpty();
+        if (!empty) {
+            LOGGER.warn("Expected empty result set for SQL '{}' but found {} rows", sql, results.size());
+        } else {
+            LOGGER.info("Result set for SQL '{}' is empty as expected", sql);
+        }
+        return empty;
+    }
+
+    /**
+     * Throws a {@link DBException} when the query returns at least one row.
+     */
+    public void assertEmpty(String sql, Object... params) {
+        if (!isEmpty(sql, params)) {
+            throw new DBException("Query returned results when an empty set was expected");
+        }
+    }
+
+    private PreparedStatement prepareStatement(Connection connection, String sql, Object... params) throws SQLException {
+        PreparedStatement statement = connection.prepareStatement(sql);
+        if (params != null) {
+            for (int i = 0; i < params.length; i++) {
+                statement.setObject(i + 1, params[i]);
+            }
+        }
+        return statement;
+    }
+
+    @Override
+    public void close() {
+        if (dataSource instanceof HikariDataSource) {
+            LOGGER.info("Closing database connection pool");
+            ((HikariDataSource) dataSource).close();
+        }
+    }
+}
