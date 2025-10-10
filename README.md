@@ -6,6 +6,12 @@ Jenkins) y el acceso a bases de datos para evitar duplicación de código en los
 pruebas.
 
 > **Requisito**: compilar y ejecutar con **Java 17**.
+>
+> El build de Gradle ya está configurado con un *toolchain* que descarga un JDK 17 si no está disponible en
+> tu máquina. Al importar el proyecto como **Gradle Project** en IntelliJ IDEA/Eclipse o al ejecutar
+> `gradle build` se resuelven automáticamente las clases estándar (`java.time`, `java.nio`, etc.). Si el IDE
+> marca imports como `Instant` u `IOException` como "Cannot resolve symbol", asegurate de que el proyecto se
+> abra con Gradle y que el IDE apunte al SDK 17 provisto por el toolchain (pestaña *Project Structure* → SDK).
 
 ## Contenido de la librería
 

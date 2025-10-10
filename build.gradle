@@ -6,10 +6,21 @@ plugins {
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+    withJavadocJar()
+}
+
+def verifyJava17 = tasks.register("verifyJava17") {
+    doLast {
+        if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_17)) {
+            throw new GradleException("qa-core requiere JDK 17 o superior. JAVA_HOME actual: ${System.getProperty('java.home')}")
+        }
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.release = 17
+    dependsOn(verifyJava17)
 }
 
 group = 'com.company.qa'
