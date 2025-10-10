@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,11 +34,19 @@ public class RestServiceClient {
     private static final Logger LOGGER = LoggerUtil.getLogger(RestServiceClient.class);
 
     private final RequestSpecBuilder specBuilder = new RequestSpecBuilder();
+    private final Map<String, String> requestHeaders = new LinkedHashMap<>();
+    private final Map<String, Object> requestQueryParams = new LinkedHashMap<>();
+    private final Map<String, Object> requestPathParams = new LinkedHashMap<>();
+    private final Map<String, Object> requestFormParams = new LinkedHashMap<>();
+    private final Map<String, String> requestCookies = new LinkedHashMap<>();
+    private final List<String> requestMultiparts = new ArrayList<>();
     private Method method = Method.GET;
     private String url;
     private boolean followRedirects = true;
     private Response response;
     private DBHelper dbHelper;
+    private Object requestBody;
+    private String requestBodyDescription;
 
     /**
      * Assigns the base URL for the request.
@@ -46,6 +56,7 @@ public class RestServiceClient {
      */
     public RestServiceClient url(String url) {
         this.url = Objects.requireNonNull(url, "url must not be null");
+        LOGGER.debug("URL configurada: {}", url);
         return this;
     }
 
@@ -57,6 +68,7 @@ public class RestServiceClient {
      */
     public RestServiceClient method(Method method) {
         this.method = Objects.requireNonNull(method, "method must not be null");
+        LOGGER.debug("Método HTTP configurado mediante enum: {}", method);
         return this;
     }
 
@@ -69,6 +81,7 @@ public class RestServiceClient {
     public RestServiceClient method(String methodName) {
         Objects.requireNonNull(methodName, "methodName must not be null");
         this.method = Method.valueOf(methodName.trim().toUpperCase(Locale.ROOT));
+        LOGGER.debug("Método HTTP configurado mediante texto: {}", this.method);
         return this;
     }
 
@@ -82,7 +95,10 @@ public class RestServiceClient {
     public RestServiceClient addHeader(String name, Object value) {
         Objects.requireNonNull(name, "name must not be null");
         Objects.requireNonNull(value, "value must not be null");
-        specBuilder.addHeader(name, value.toString());
+        String sanitizedValue = value.toString();
+        specBuilder.addHeader(name, sanitizedValue);
+        requestHeaders.put(name, sanitizedValue);
+        LOGGER.debug("Header agregado: {}={}", name, sanitizedValue);
         return this;
     }
 
@@ -95,6 +111,8 @@ public class RestServiceClient {
      */
     public RestServiceClient addQueryParam(String name, Object value) {
         specBuilder.addQueryParam(name, value);
+        requestQueryParams.put(name, value);
+        LOGGER.debug("Query param agregado: {}={}", name, value);
         return this;
     }
 
@@ -107,6 +125,8 @@ public class RestServiceClient {
      */
     public RestServiceClient addPathParam(String name, Object value) {
         specBuilder.addPathParam(name, value);
+        requestPathParams.put(name, value);
+        LOGGER.debug("Path param agregado: {}={}", name, value);
         return this;
     }
 
@@ -118,6 +138,8 @@ public class RestServiceClient {
      */
     public RestServiceClient contentType(ContentType contentType) {
         specBuilder.setContentType(contentType);
+        requestBodyDescription = "Contenido con Content-Type " + contentType;
+        LOGGER.debug("Content-Type configurado: {}", contentType);
         return this;
     }
 
@@ -130,6 +152,9 @@ public class RestServiceClient {
     public RestServiceClient jsonBody(Object body) {
         specBuilder.setContentType(ContentType.JSON);
         specBuilder.setBody(body);
+        this.requestBody = body;
+        this.requestBodyDescription = body == null ? "JSON vacío" : "JSON -> " + body;
+        LOGGER.debug("Body JSON configurado: {}", requestBodyDescription);
         return this;
     }
 
@@ -142,6 +167,9 @@ public class RestServiceClient {
     public RestServiceClient formBody(Map<String, ?> formParams) {
         specBuilder.setContentType(ContentType.URLENC);
         specBuilder.addFormParams(formParams);
+        requestFormParams.putAll(formParams);
+        requestBodyDescription = "Form-UrlEncoded -> " + formParams;
+        LOGGER.debug("Form params configurados: {}", formParams);
         return this;
     }
 
@@ -154,6 +182,9 @@ public class RestServiceClient {
      */
     public RestServiceClient multiPart(String controlName, File file) {
         specBuilder.addMultiPart(controlName, file);
+        requestMultiparts.add(String.format("%s -> file[%s]", controlName, file != null ? file.getName() : "null"));
+        requestBodyDescription = "Multipart -> " + requestMultiparts;
+        LOGGER.debug("Multipart archivo agregado: {} -> {}", controlName, file);
         return this;
     }
 
@@ -168,6 +199,9 @@ public class RestServiceClient {
      */
     public RestServiceClient multiPart(String controlName, InputStream stream, String fileName, String mimeType) {
         specBuilder.addMultiPart(controlName, fileName, stream, mimeType);
+        requestMultiparts.add(String.format("%s -> stream[%s, %s]", controlName, fileName, mimeType));
+        requestBodyDescription = "Multipart -> " + requestMultiparts;
+        LOGGER.debug("Multipart stream agregado: {} -> nombre={}, mimeType={}", controlName, fileName, mimeType);
         return this;
     }
 
@@ -181,6 +215,9 @@ public class RestServiceClient {
     public RestServiceClient binaryBody(byte[] bytes, String contentType) {
         specBuilder.setBody(bytes);
         specBuilder.setContentType(contentType);
+        this.requestBody = bytes;
+        this.requestBodyDescription = bytes == null ? "Binary vacío" : "Binary -> tamaño=" + bytes.length;
+        LOGGER.debug("Body binario configurado ({} bytes, contentType={})", bytes != null ? bytes.length : 0, contentType);
         return this;
     }
 
@@ -192,6 +229,26 @@ public class RestServiceClient {
      */
     public RestServiceClient body(Object body) {
         specBuilder.setBody(body);
+        this.requestBody = body;
+        this.requestBodyDescription = body == null ? "Body vacío" : "Body -> " + body;
+        LOGGER.debug("Body configurado: {}", requestBodyDescription);
+        return this;
+    }
+
+    /**
+     * Adds a cookie to the request specification.
+     *
+     * @param name  cookie name
+     * @param value cookie value
+     * @return client instance for chaining
+     */
+    public RestServiceClient addCookie(String name, Object value) {
+        Objects.requireNonNull(name, "name must not be null");
+        Objects.requireNonNull(value, "value must not be null");
+        String sanitizedValue = value.toString();
+        specBuilder.addCookie(name, sanitizedValue);
+        requestCookies.put(name, sanitizedValue);
+        LOGGER.debug("Cookie agregada: {}={}", name, sanitizedValue);
         return this;
     }
 
@@ -203,6 +260,7 @@ public class RestServiceClient {
      */
     public RestServiceClient followRedirects(boolean follow) {
         this.followRedirects = follow;
+        LOGGER.debug("Seguimiento de redirecciones configurado: {}", follow);
         return this;
     }
 
@@ -213,7 +271,8 @@ public class RestServiceClient {
      * @return client instance for chaining
      */
     public RestServiceClient withDBHelper(DBHelper helper) {
-        this.dbHelper = helper;
+        this.dbHelper = Objects.requireNonNull(helper, "helper must not be null");
+        LOGGER.debug("DBHelper asociado: {}", helper);
         return this;
     }
 
@@ -226,11 +285,15 @@ public class RestServiceClient {
         if (url == null) {
             throw new IllegalStateException("Debe declararse la URL antes de ejecutar la solicitud");
         }
-        RequestSpecification request = RestAssured.given(specBuilder.build())
+        RequestSpecification baseSpecification = specBuilder.build();
+        RequestSpecification request = RestAssured.given(baseSpecification)
                 .config(RestAssuredConfig.config()
                         .redirect(RedirectConfig.redirectConfig().followRedirects(followRedirects)));
+        logRequest();
+        long start = System.nanoTime();
         response = request.request(method, url);
-        LOGGER.info("Solicitud ejecutada con estado {}", response.getStatusCode());
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        logResponse(elapsedMillis);
         return response;
     }
 
@@ -238,6 +301,7 @@ public class RestServiceClient {
         if (response == null) {
             throw new IllegalStateException("Debe ejecutar la solicitud antes de realizar validaciones");
         }
+        LOGGER.debug("Respuesta disponible en memoria: status={}", response.getStatusCode());
         return response;
     }
 
@@ -253,7 +317,7 @@ public class RestServiceClient {
         if (actual != expectedStatus) {
             throw new AssertionError(String.format("Código de respuesta esperado %d pero fue %d", expectedStatus, actual));
         }
-        LOGGER.info("Validación exitosa de código de respuesta {}", expectedStatus);
+        LOGGER.info("Validación exitosa de código de respuesta esperado={} actual={}", expectedStatus, actual);
         return this;
     }
 
@@ -269,7 +333,7 @@ public class RestServiceClient {
         if (!body.contains(expectedText)) {
             throw new AssertionError("El cuerpo de la respuesta no contiene el texto esperado: " + expectedText);
         }
-        LOGGER.info("Validación exitosa del contenido esperado en la respuesta");
+        LOGGER.info("Validación exitosa del contenido esperado en la respuesta (texto buscado='{}')", expectedText);
         return this;
     }
 
@@ -285,7 +349,7 @@ public class RestServiceClient {
         if (!Objects.equals(actual, expected)) {
             throw new AssertionError(String.format("Valor esperado en '%s' era '%s' pero fue '%s'", jsonPath, expected, actual));
         }
-        LOGGER.info("Validación exitosa para jsonPath {}", jsonPath);
+        LOGGER.info("Validación exitosa para jsonPath '{}' con valor '{}'", jsonPath, actual);
         return this;
     }
 
@@ -318,7 +382,8 @@ public class RestServiceClient {
             throw new AssertionError(String.format("Tiempo de respuesta %d ms no cumple con la condición %s %d ms", elapsed,
                     comparator, target));
         }
-        LOGGER.info("Validación exitosa del tiempo de respuesta ({} {} ms)", comparator, target);
+        LOGGER.info("Validación exitosa del tiempo de respuesta: observado={} ms, condición={} {} ms", elapsed, comparator,
+                target);
         return this;
     }
 
@@ -344,7 +409,9 @@ public class RestServiceClient {
      */
     public <T> T extractJsonPath(String jsonPath, Class<T> type) {
         Response current = ensureResponse();
-        return current.jsonPath().getObject(jsonPath, type);
+        T value = current.jsonPath().getObject(jsonPath, type);
+        LOGGER.debug("Valor extraído de jsonPath '{}': {}", jsonPath, value);
+        return value;
     }
 
     /**
@@ -354,7 +421,9 @@ public class RestServiceClient {
      * @return header value or null if not present
      */
     public String extractHeader(String name) {
-        return ensureResponse().getHeader(name);
+        String value = ensureResponse().getHeader(name);
+        LOGGER.debug("Header de respuesta extraído {}={}", name, value);
+        return value;
     }
 
     /**
@@ -364,7 +433,9 @@ public class RestServiceClient {
      * @return cookie value or null if absent
      */
     public String extractCookie(String name) {
-        return ensureResponse().getCookie(name);
+        String value = ensureResponse().getCookie(name);
+        LOGGER.debug("Cookie de respuesta extraída {}={}", name, value);
+        return value;
     }
 
     /**
@@ -376,6 +447,7 @@ public class RestServiceClient {
      */
     public List<Map<String, Object>> executeQuery(String sql, Object... params) {
         ensureDbHelper();
+        LOGGER.info("Ejecutando consulta desde RestServiceClient: {} con parámetros {}", sql, formatParams(params));
         return dbHelper.query(sql, params);
     }
 
@@ -388,6 +460,7 @@ public class RestServiceClient {
      */
     public int executeUpdate(String sql, Object... params) {
         ensureDbHelper();
+        LOGGER.info("Ejecutando actualización desde RestServiceClient: {} con parámetros {}", sql, formatParams(params));
         return dbHelper.execute(sql, params);
     }
 
@@ -403,7 +476,7 @@ public class RestServiceClient {
         if (!results.isEmpty()) {
             throw new AssertionError("La consulta retornó resultados cuando se esperaba vacío");
         }
-        LOGGER.info("Validación exitosa: la consulta no retornó registros");
+        LOGGER.info("Validación exitosa: la consulta '{}' no retornó registros", sql);
         return this;
     }
 
@@ -421,7 +494,9 @@ public class RestServiceClient {
             return null;
         }
         Map<String, Object> firstRow = results.get(0);
-        return firstRow.get(columnName);
+        Object value = firstRow.get(columnName);
+        LOGGER.debug("Valor extraído de la consulta '{}' columna '{}': {}", sql, columnName, value);
+        return value;
     }
 
     /**
@@ -430,13 +505,60 @@ public class RestServiceClient {
      * @return last response
      */
     public Response getResponse() {
-        return ensureResponse();
+        Response current = ensureResponse();
+        LOGGER.debug("Respuesta recuperada para uso adicional: status={}", current.getStatusCode());
+        return current;
     }
 
     private void ensureDbHelper() {
         if (dbHelper == null) {
             throw new IllegalStateException("Debe configurar un DBHelper para ejecutar consultas");
         }
+        LOGGER.debug("DBHelper disponible para operaciones de base de datos");
+    }
+
+    private void logRequest() {
+        LOGGER.info("===>> Solicitud REST [{}] {}", method, url);
+        LOGGER.info("Headers request: {}", requestHeaders.isEmpty() ? "{}" : requestHeaders);
+        LOGGER.info("Query params: {}", requestQueryParams.isEmpty() ? "{}" : requestQueryParams);
+        LOGGER.info("Path params: {}", requestPathParams.isEmpty() ? "{}" : requestPathParams);
+        LOGGER.info("Cookies request: {}", requestCookies.isEmpty() ? "{}" : requestCookies);
+        LOGGER.info("Body request: {}", requestBodyDescription != null ? requestBodyDescription :
+                (requestBody == null ? "<sin cuerpo>" : requestBody));
+        if (!requestFormParams.isEmpty()) {
+            LOGGER.info("Form params: {}", requestFormParams);
+        }
+        if (!requestMultiparts.isEmpty()) {
+            LOGGER.info("Partes multipart: {}", requestMultiparts);
+        }
+        LOGGER.info("Redirecciones habilitadas: {}", followRedirects);
+    }
+
+    private void logResponse(long elapsedMillis) {
+        LOGGER.info("<<== Respuesta HTTP status={} ({}) ms", response.getStatusCode(), elapsedMillis);
+        LOGGER.info("Headers response: {}", response.getHeaders().asList());
+        LOGGER.info("Cookies response: {}", response.getCookies());
+        try {
+            String pretty = response.getBody() != null ? response.getBody().asPrettyString() : "<sin cuerpo>";
+            LOGGER.info("Body response:\n{}", pretty);
+        } catch (Exception ex) {
+            LOGGER.warn("No fue posible formatear el cuerpo de la respuesta", ex);
+        }
+    }
+
+    private String formatParams(Object... params) {
+        if (params == null || params.length == 0) {
+            return "[]";
+        }
+        StringBuilder builder = new StringBuilder("[");
+        for (int i = 0; i < params.length; i++) {
+            Object param = params[i];
+            builder.append(param);
+            if (i < params.length - 1) {
+                builder.append(", ");
+            }
+        }
+        return builder.append(']').toString();
     }
 
     /**

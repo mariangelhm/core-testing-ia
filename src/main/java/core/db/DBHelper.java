@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,13 +37,16 @@ public class DBHelper implements AutoCloseable {
         config.setMaximumPoolSize(5);
         config.setPoolName("qa-core-pool");
         this.dataSource = new HikariDataSource(config);
+        LOGGER.info("DBHelper inicializado con URL {} y usuario {}", jdbcUrl, username);
     }
 
     public DBHelper(DataSource dataSource) {
         this.dataSource = dataSource;
+        LOGGER.info("DBHelper inicializado con DataSource personalizado {}", dataSource);
     }
 
     public List<Map<String, Object>> query(String sql, Object... params) {
+        LOGGER.debug("query() invocado");
         return select(sql, params);
     }
 
@@ -50,6 +54,7 @@ public class DBHelper implements AutoCloseable {
      * Executes a {@code SELECT} returning all rows as a list of column-name/value maps.
      */
     public List<Map<String, Object>> select(String sql, Object... params) {
+        LOGGER.info("Ejecutando SELECT: {} con parámetros {}", sql, Arrays.toString(params));
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = prepareStatement(connection, sql, params);
              ResultSet resultSet = statement.executeQuery()) {
@@ -63,8 +68,10 @@ public class DBHelper implements AutoCloseable {
                 }
                 results.add(row);
             }
+            LOGGER.info("SELECT finalizado: {} filas devueltas", results.size());
             return results;
         } catch (SQLException e) {
+            LOGGER.error("Error ejecutando SELECT {}", sql, e);
             throw new DBException("Error executing query", e);
         }
     }
@@ -73,10 +80,13 @@ public class DBHelper implements AutoCloseable {
      * Returns the first row of a {@code SELECT} or {@code null} when no data matches the query.
      */
     public Map<String, Object> selectFirst(String sql, Object... params) {
+        LOGGER.debug("selectFirst() invocado para SQL {}", sql);
         List<Map<String, Object>> results = select(sql, params);
         if (results.isEmpty()) {
+            LOGGER.info("selectFirst() no encontró resultados para SQL {}", sql);
             return null;
         }
+        LOGGER.info("selectFirst() retornó la primera fila para SQL {}", sql);
         return results.get(0);
     }
 
@@ -84,15 +94,19 @@ public class DBHelper implements AutoCloseable {
      * Returns the first column of the first row from a {@code SELECT}. Useful for scalar queries.
      */
     public <T> T selectValue(String sql, Object... params) {
+        LOGGER.debug("selectValue() invocado para SQL {}", sql);
         Map<String, Object> firstRow = selectFirst(sql, params);
         if (firstRow == null) {
+            LOGGER.info("selectValue() no encontró valor para SQL {}", sql);
             return null;
         }
         if (firstRow.isEmpty()) {
+            LOGGER.warn("selectValue() encontró fila vacía para SQL {}", sql);
             return null;
         }
         @SuppressWarnings("unchecked")
         T value = (T) firstRow.values().iterator().next();
+        LOGGER.info("selectValue() obtuvo valor {} para SQL {}", value, sql);
         return value;
     }
 
@@ -100,6 +114,8 @@ public class DBHelper implements AutoCloseable {
      * Extracts a value from a materialised result set, enforcing bounds and column presence.
      */
     public Object extractValue(List<Map<String, Object>> rows, int rowIndex, String column) {
+        LOGGER.debug("extractValue() invocado - filas: {}, índice: {}, columna: {}",
+                rows != null ? rows.size() : 0, rowIndex, column);
         if (rows == null || rows.isEmpty()) {
             throw new DBException("Result set is empty; cannot extract value");
         }
@@ -110,10 +126,13 @@ public class DBHelper implements AutoCloseable {
         if (!row.containsKey(column)) {
             throw new DBException("Column '" + column + "' not present in result set");
         }
-        return row.get(column);
+        Object value = row.get(column);
+        LOGGER.info("extractValue() obtuvo valor {} de la fila {} columna {}", value, rowIndex, column);
+        return value;
     }
 
     public int execute(String sql, Object... params) {
+        LOGGER.debug("execute() invocado");
         return update(sql, params);
     }
 
@@ -121,10 +140,14 @@ public class DBHelper implements AutoCloseable {
      * Executes an {@code INSERT}, {@code UPDATE} or {@code DELETE} statement returning the affected row count.
      */
     public int update(String sql, Object... params) {
+        LOGGER.info("Ejecutando UPDATE: {} con parámetros {}", sql, Arrays.toString(params));
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = prepareStatement(connection, sql, params)) {
-            return statement.executeUpdate();
+            int affected = statement.executeUpdate();
+            LOGGER.info("UPDATE finalizado: {} filas afectadas", affected);
+            return affected;
         } catch (SQLException e) {
+            LOGGER.error("Error ejecutando UPDATE {}", sql, e);
             throw new DBException("Error executing statement", e);
         }
     }
@@ -156,6 +179,7 @@ public class DBHelper implements AutoCloseable {
      * Returns {@code true} when a {@code SELECT} yields no rows.
      */
     public boolean isEmpty(String sql, Object... params) {
+        LOGGER.debug("isEmpty() invocado para SQL {}", sql);
         List<Map<String, Object>> results = select(sql, params);
         boolean empty = results.isEmpty();
         if (!empty) {
@@ -170,12 +194,14 @@ public class DBHelper implements AutoCloseable {
      * Throws a {@link DBException} when the query returns at least one row.
      */
     public void assertEmpty(String sql, Object... params) {
+        LOGGER.debug("assertEmpty() invocado para SQL {}", sql);
         if (!isEmpty(sql, params)) {
             throw new DBException("Query returned results when an empty set was expected");
         }
     }
 
     private PreparedStatement prepareStatement(Connection connection, String sql, Object... params) throws SQLException {
+        LOGGER.debug("Preparando PreparedStatement para SQL {} con parámetros {}", sql, Arrays.toString(params));
         PreparedStatement statement = connection.prepareStatement(sql);
         if (params != null) {
             for (int i = 0; i < params.length; i++) {
@@ -190,6 +216,8 @@ public class DBHelper implements AutoCloseable {
         if (dataSource instanceof HikariDataSource) {
             LOGGER.info("Closing database connection pool");
             ((HikariDataSource) dataSource).close();
+        } else {
+            LOGGER.debug("close() invocado sin DataSource de tipo HikariDataSource");
         }
     }
 }

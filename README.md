@@ -124,6 +124,7 @@ import core.db.DBHelper;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
+import io.restassured.response.Response;
 
 DBHelper dbHelper = new DBHelper("jdbc:postgresql://host:5432/db", "user", "pass");
 
@@ -131,14 +132,13 @@ RestServiceClient client = new RestServiceClient()
         .url("https://api.qa.company.com/v1/users")
         .method("POST")
         .addHeader("Authorization", "Bearer " + token)
+        .addCookie("locale", "es-AR")
         .addQueryParam("notify", true)
         .jsonBody(Map.of("name", "QA Bot", "email", "bot@qa.com"))
         .withDBHelper(dbHelper)
         .followRedirects(false);
 
-client.execute()
-      .then()
-      .log().all(); // acceso opcional al Response original
+Response response = client.execute(); // log detallado similar a Postman
 
 client.validateStatusCode(201)
       .validateBodyContains("QA Bot")
@@ -158,6 +158,7 @@ Object sessionId = client.extractValueFromQuery("SELECT session_id FROM sessions
 
 - **Declarar URL y método**: `url(String)` y `method(String|Method)`.
 - **Headers y parámetros**: `addHeader`, `addQueryParam`, `addPathParam`.
+- **Cookies**: `addCookie` para adjuntar cookies al request.
 - **Cuerpos de la solicitud**:
   - JSON con `jsonBody(Object)`.
   - Formularios `x-www-form-urlencoded` vía `formBody(Map)`.
@@ -173,6 +174,8 @@ Object sessionId = client.extractValueFromQuery("SELECT session_id FROM sessions
 - **Extracciones**:
   - `extractJsonPath`, `extractHeader`, `extractCookie` para datos de la respuesta.
   - `getResponse()` devuelve el `Response` completo de Rest Assured para validaciones avanzadas.
+- **Logging tipo Postman**: `execute()` registra método, URL, headers, query params, cookies, body, status, tiempo de respuesta,
+  headers y body de la respuesta para facilitar el troubleshooting.
 - **Integración con base de datos** (requiere `withDBHelper(DBHelper)`):
   - `executeQuery`/`executeUpdate` para consultas `SELECT` o `INSERT/UPDATE/DELETE`.
   - `extractValueFromQuery` para recuperar una columna específica.
