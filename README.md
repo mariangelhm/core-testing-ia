@@ -22,6 +22,7 @@ pruebas.
 | **Manejo de errores** | `core.errors` | Excepciones personalizadas (`FrameworkException`, `JiraException`, `JenkinsException`, `DBException`) para encapsular fallos y enriquecer mensajes/logs. |
 | **Cliente Jira/Xray** | `core.jira.JiraClient` | Operaciones REST para crear casos de prueba, asociarlos a ejecuciones y reportar resultados o consultar estados. Usa Jackson para serialización y OkHttp como cliente HTTP. |
 | **Cliente Jenkins** | `core.jenkins.JenkinsClient` | Métodos para disparar jobs parametrizados, consultar builds y recuperar logs de ejecución vía API REST. |
+| **Cliente REST funcional** | `core.api.RestServiceClient` | Construcción fluida de requests con Rest Assured, validaciones de respuesta, extracción de datos, manejo de redirecciones y reutilización de consultas SQL con `DBHelper`. |
 | **Acceso a base de datos** | `core.db.DBHelper` | Pool de conexiones con HikariCP, helpers `query`/`execute`, conversión de resultados a listas/mapas y manejo de credenciales por entorno. |
 | **Utilidades** | `core.utils` | Funciones reutilizables: generación de IDs (`UniqueIdGenerator`), fechas (`DateUtil`), archivos (`FileUtil`) y datos aleatorios (`RandomDataUtil`). |
 
@@ -112,6 +113,71 @@ String logs = jenkinsClient.getJobLogs("qa-pipeline", 42);
 
 Configurable vía `jenkins.url`, `jenkins.user`, `jenkins.token`.
 
+## Cliente REST para servicios externos
+
+`RestServiceClient` encapsula las operaciones más comunes al consumir APIs REST desde pruebas automatizadas. El cliente soporta la definición de URL, método, encabezados, parámetros, payloads en distintos formatos y validaciones posteriores sobre la respuesta o la base de datos.
+
+```java
+import core.api.RestServiceClient;
+import core.api.RestServiceClient.TimeComparison;
+import core.db.DBHelper;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Map;
+
+DBHelper dbHelper = new DBHelper("jdbc:postgresql://host:5432/db", "user", "pass");
+
+RestServiceClient client = new RestServiceClient()
+        .url("https://api.qa.company.com/v1/users")
+        .method("POST")
+        .addHeader("Authorization", "Bearer " + token)
+        .addQueryParam("notify", true)
+        .jsonBody(Map.of("name", "QA Bot", "email", "bot@qa.com"))
+        .withDBHelper(dbHelper)
+        .followRedirects(false);
+
+client.execute()
+      .then()
+      .log().all(); // acceso opcional al Response original
+
+client.validateStatusCode(201)
+      .validateBodyContains("QA Bot")
+      .validateJsonPathEquals("data.properties[0].id", 12345)
+      .validateResponseTime(Duration.ofSeconds(2), TimeComparison.LESS_THAN)
+      .validateJsonSchema(Path.of("schemas/user-created.json"));
+
+String userId = client.extractJsonPath("data.properties[0].id", String.class);
+String requestId = client.extractHeader("X-Request-Id");
+
+client.executeQuery("SELECT * FROM users WHERE id = ?", userId);
+client.validateQueryEmpty("SELECT * FROM audit WHERE status = ?", "ERROR");
+Object sessionId = client.extractValueFromQuery("SELECT session_id FROM sessions WHERE user_id = ?", "session_id", userId);
+```
+
+### Métodos disponibles
+
+- **Declarar URL y método**: `url(String)` y `method(String|Method)`.
+- **Headers y parámetros**: `addHeader`, `addQueryParam`, `addPathParam`.
+- **Cuerpos de la solicitud**:
+  - JSON con `jsonBody(Object)`.
+  - Formularios `x-www-form-urlencoded` vía `formBody(Map)`.
+  - Multiparte con `multiPart(...)` (acepta `File` o `InputStream`).
+  - Binario arbitrario con `binaryBody(byte[], String)` o `body(Object)` para casos personalizados.
+- **Control de redirecciones**: `followRedirects(boolean)` permite forzar o evitar redirecciones 302.
+- **Validaciones**:
+  - `validateStatusCode(int)` para códigos HTTP.
+  - `validateBodyContains(String)` para textos.
+  - `validateJsonPathEquals(String, Object)` para estructuras específicas (`data.properties[0].id`).
+  - `validateResponseTime(Duration, TimeComparison)` para tiempos menor/mayor/igual a un umbral.
+  - `validateJsonSchema(Path)` contra esquemas JSON.
+- **Extracciones**:
+  - `extractJsonPath`, `extractHeader`, `extractCookie` para datos de la respuesta.
+  - `getResponse()` devuelve el `Response` completo de Rest Assured para validaciones avanzadas.
+- **Integración con base de datos** (requiere `withDBHelper(DBHelper)`):
+  - `executeQuery`/`executeUpdate` para consultas `SELECT` o `INSERT/UPDATE/DELETE`.
+  - `extractValueFromQuery` para recuperar una columna específica.
+  - `validateQueryEmpty` para confirmar que una consulta no devuelve registros.
+
 ## Acceso a base de datos
 
 ```java
@@ -158,6 +224,7 @@ agregar el repositorio y la dependencia como se mostró arriba.
 ```
 qa-core/
 ├── src/main/java/core/
+│   ├── api/
 │   ├── config/
 │   ├── db/
 │   ├── errors/
