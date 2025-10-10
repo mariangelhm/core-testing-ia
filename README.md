@@ -68,7 +68,7 @@ El artefacto se publica en GitHub Packages con el identificador `com.company.qa:
    gpr.key=GITHUB_TOKEN
    ```
 
-   También podés exportar `GITHUB_OWNER`, `GITHUB_REPO` (o `GITHUB_REPOSITORY=owner/repo`), `GITHUB_USERNAME` y
+   También podés exportar `GITHUB_OWNER`, `GITHUB_REPO` (o `GITHUB_REPOSITORY=owner/repo` o solo `repo`), `GITHUB_USERNAME` y
    `GITHUB_TOKEN` en tu terminal. El token debe tener permisos `read:packages` (y `write:packages` si vas a
    publicar versiones nuevas).
 
