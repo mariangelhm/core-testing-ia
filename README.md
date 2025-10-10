@@ -180,15 +180,39 @@ Object sessionId = client.extractValueFromQuery("SELECT session_id FROM sessions
 
 ## Acceso a base de datos
 
+`core.db.DBHelper` encapsula el pool de conexiones (HikariCP) y expone helpers atómicos para lectura,
+escritura y validaciones. Se puede construir con un `DataSource` externo o pasando las credenciales
+directamente:
+
 ```java
-try (DBHelper db = new DBHelper()) {
-    List<Map<String, Object>> rows = db.query("SELECT * FROM users WHERE status = ?", "ACTIVE");
-    int updated = db.execute("UPDATE users SET last_login = NOW() WHERE id = ?", 1001);
-}
+DBHelper db = new DBHelper("jdbc:postgresql://host:5432/db", "user", "pass");
 ```
 
-La conexión usa HikariCP. Las claves esperadas son `db.url`, `db.user`, `db.password`, `db.pool.maxSize`,
-entre otras. `DBHelper` cierra automáticamente los recursos mediante `AutoCloseable`.
+### Métodos disponibles
+
+| Método | Descripción | Ejemplo |
+| --- | --- | --- |
+| `select(sql, params...)` | Ejecuta un `SELECT` y retorna una lista de filas (`List<Map<String,Object>>`). | `List<Map<String, Object>> activos = db.select("SELECT id, email FROM users WHERE status = ?", "ACTIVE");` |
+| `selectFirst(sql, params...)` | Entrega la primera fila o `null` si no hay resultados. | `Map<String, Object> usuario = db.selectFirst("SELECT * FROM users WHERE id = ?", 1001);` |
+| `selectValue(sql, params...)` | Devuelve el primer valor de la primera fila, ideal para agregaciones. | `Integer total = db.selectValue("SELECT COUNT(1) FROM users WHERE status = ?", "ACTIVE");` |
+| `extractValue(rows, rowIndex, column)` | Permite tomar un valor específico de un resultado preexistente. | `String email = (String) db.extractValue(activos, 0, "email");` |
+| `update(sql, params...)` / `execute` | Ejecuta `INSERT/UPDATE/DELETE` retornando filas afectadas. | `int updated = db.update("UPDATE users SET last_login = NOW() WHERE id = ?", 1001);` |
+| `validateValueEquals(sql, expected, params...)` | Compara el valor retornado por la consulta contra un esperado y devuelve `true/false`. | `boolean ok = db.validateValueEquals("SELECT status FROM users WHERE id = ?", "ACTIVE", 1001);` |
+| `assertValueEquals(sql, expected, params...)` | Igual que la anterior pero lanza `DBException` si no coincide. | `db.assertValueEquals("SELECT status FROM users WHERE id = ?", "ACTIVE", 1001);` |
+| `isEmpty(sql, params...)` | Comprueba que una consulta no retorne filas. | `boolean vacio = db.isEmpty("SELECT 1 FROM users WHERE status = ?", "DELETED");` |
+| `assertEmpty(sql, params...)` | Lanza excepción si la consulta arroja filas. | `db.assertEmpty("SELECT 1 FROM users WHERE email = ?", "duplicated@company.com");` |
+
+### Buenas prácticas
+
+- Encerrá el helper en un bloque `try-with-resources` si lo creás directamente para liberar el pool:
+  ```java
+  try (DBHelper db = new DBHelper(url, user, pass)) {
+      // uso
+  }
+  ```
+- Cuando se usa con `RestServiceClient`, podés inyectarlo vía `withDBHelper(DBHelper)` para reusar
+  conexiones.
+- Las propiedades soportadas por defecto son `db.url`, `db.user`, `db.password` y `db.pool.maxSize`.
 
 ## Publicar artefactos
 
