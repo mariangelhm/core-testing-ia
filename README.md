@@ -1,110 +1,170 @@
 # qa-core
 
-Biblioteca centralizada de utilidades para los microservicios de pruebas de QA. Provee configuración compartida,
-logs, integración con Jira/Xray, Jenkins y acceso a base de datos.
+Biblioteca centralizada de utilidades para los microservicios de QA automatizada. El objetivo del módulo es
+unificar la configuración de entornos, el logging, la conexión con herramientas externas (Jira/Xray y
+Jenkins) y el acceso a bases de datos para evitar duplicación de código en los diferentes proyectos de
+pruebas.
 
-> **Requisito**: compilar y ejecutar con Java 17.
+> **Requisito**: compilar y ejecutar con **Java 17**.
 
-## Módulos principales
+## Contenido de la librería
 
-- **ConfigManager**: carga propiedades desde archivos `application.properties`, variables de entorno y parámetros `-D`.
-- **LoggerUtil**: expone métodos comunes para SLF4J/Logback y permite ajustar el nivel de logs.
-- **Errores**: excepciones personalizadas `FrameworkException`, `JiraException`, `JenkinsException`, `DBException`.
-- **JiraClient**: operaciones REST para crear tests, agregar a ejecuciones y reportar resultados.
-- **JenkinsClient**: helpers para disparar jobs, consultar estado y obtener logs.
-- **DBHelper**: pool de conexiones vía HikariCP y métodos `query`/`execute`.
-- **Utils**: generador de IDs, utilidades de fechas, archivos y datos aleatorios.
+| Módulo | Paquete | Qué resuelve |
+| --- | --- | --- |
+| **Gestión de configuración** | `core.config.ConfigManager` | Carga propiedades desde archivos `application.properties` y variantes por entorno (`application-<env>.properties`), variables de entorno y parámetros `-D`. Permite priorizar overrides en tiempo de ejecución. |
+| **Logging centralizado** | `core.log.LoggerUtil` | Expone un `Logger` compartido con SLF4J/Logback, manejo de niveles dinámico y configuración de appenders para consola y archivo (`logs/qa-core.log`). |
+| **Manejo de errores** | `core.errors` | Excepciones personalizadas (`FrameworkException`, `JiraException`, `JenkinsException`, `DBException`) para encapsular fallos y enriquecer mensajes/logs. |
+| **Cliente Jira/Xray** | `core.jira.JiraClient` | Operaciones REST para crear casos de prueba, asociarlos a ejecuciones y reportar resultados o consultar estados. Usa Jackson para serialización y OkHttp como cliente HTTP. |
+| **Cliente Jenkins** | `core.jenkins.JenkinsClient` | Métodos para disparar jobs parametrizados, consultar builds y recuperar logs de ejecución vía API REST. |
+| **Acceso a base de datos** | `core.db.DBHelper` | Pool de conexiones con HikariCP, helpers `query`/`execute`, conversión de resultados a listas/mapas y manejo de credenciales por entorno. |
+| **Utilidades** | `core.utils` | Funciones reutilizables: generación de IDs (`UniqueIdGenerator`), fechas (`DateUtil`), archivos (`FileUtil`) y datos aleatorios (`RandomDataUtil`). |
 
-## Uso
+## Cómo consumir la librería
 
-Agregar la dependencia en otros proyectos internos tras publicar el artefacto.
+El artefacto se publica en GitHub Packages con el identificador `com.company.qa:qa-core:1.0.0`.
 
-```groovy
-implementation 'com.company.qa:qa-core:1.0.0'
-```
-
-### Publicar el artefacto de forma local
-
-Si querés consumir `qa-core` desde otro servicio sin subirlo a un repositorio corporativo,
-podés publicarlo en tu `~/.m2` local con Gradle y luego resolverlo desde ahí.
-
-1. Asegurate de tener instalado **JDK 17** y Gradle 8+ (o usar el *wrapper* si está disponible).
-2. Desde la raíz del proyecto ejecutá:
-
-   ```bash
-   gradle clean publishToMavenLocal
-   # o ./gradlew clean publishToMavenLocal
-   ```
-
-   Esto compila el proyecto, genera el JAR en `build/libs/` y lo instala en
-   `~/.m2/repository/com/company/qa/qa-core/1.0.0`.
-3. En el microservicio consumidor agregá `mavenLocal()` antes de `mavenCentral()` para
-   que tome el artefacto local:
-
-   ```groovy
-   repositories {
-       mavenLocal()
-       mavenCentral()
-   }
-
-   dependencies {
-       implementation 'com.company.qa:qa-core:1.0.0'
-   }
-   ```
-
-Cuando hagas cambios en `qa-core`, incrementá la versión en `build.gradle` y volvé a ejecutar
-`publishToMavenLocal` para que el servicio consumidor obtenga la nueva build.
-
-### Publicar en GitHub Packages
-
-Si querés tener el artefacto disponible en línea, podés subirlo a GitHub Packages.
-
-1. Creá un token personal con permisos `write:packages`, `read:packages` y `repo`.
-2. Configurá tus credenciales en `~/.gradle/gradle.properties` o como variables de entorno:
-
-   ```properties
-   gpr.user=TU_USUARIO
-   gpr.key=TOKEN_GENERADO
-   ```
-
-   o bien exportá `GITHUB_USERNAME`/`GITHUB_TOKEN` antes de publicar.
-3. Editá `build.gradle` reemplazando `OWNER/REPO` por la organización y repositorio que alojarán el paquete.
-4. Ejecutá la publicación:
-
-   ```bash
-   gradle clean publish
-   # o ./gradlew clean publish
-   ```
-
-   Gradle subirá el JAR a `https://maven.pkg.github.com/OWNER/REPO`.
-5. En los proyectos consumidores agregá el repositorio de GitHub con credenciales:
+1. Agregá el repositorio de GitHub Packages en tu `build.gradle` (o `settings.gradle` para Gradle 8+):
 
    ```groovy
    repositories {
        maven {
-           url = uri("https://maven.pkg.github.com/OWNER/REPO")
+           url = uri("https://maven.pkg.github.com/mariangelhm/qa-core")
            credentials {
-               username = findProperty("gpr.user") ?: System.getenv("GITHUB_USERNAME")
-               password = findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+               username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_USERNAME")
+               password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
            }
        }
        mavenCentral()
    }
    ```
 
-   Luego declarás la dependencia normalmente con `implementation 'com.company.qa:qa-core:1.0.0'`.
+2. Declarar la dependencia en el módulo que vaya a reutilizar los servicios compartidos:
 
-### Configuración
+   ```groovy
+   dependencies {
+       implementation 'com.company.qa:qa-core:1.0.0'
+   }
+   ```
 
-Definir el entorno con `-Dqa.env=qa` o variable `ENV`. Los archivos `application-<env>.properties`
-se pueden ubicar en el classpath o directorio de trabajo.
+3. Proveé las credenciales como propiedades de Gradle (`~/.gradle/gradle.properties`) o variables de entorno
+   (`GITHUB_USERNAME`, `GITHUB_TOKEN`). El token debe tener permisos `read:packages` (y `write:packages` si
+   vas a publicar versiones nuevas).
 
-### Logging
+## Configuración de entornos
 
-El nivel de logs se puede modificar dinámicamente:
+`ConfigManager` resuelve los valores en el siguiente orden (de menor a mayor prioridad):
+
+1. Archivo base `application.properties` (incluido en `src/main/resources`).
+2. Archivo específico por entorno `application-<env>.properties` según `qa.env` o `ENV`.
+3. Variables de entorno del sistema.
+4. Propiedades pasadas por JVM (`-Dclave=valor`).
+
+Ejemplo de uso:
 
 ```java
+ConfigManager config = ConfigManager.getInstance();
+String jiraUrl = config.get("jira.url");
+String dbUser = config.get("db.user", "qa_user");
+```
+
+## Logging unificado
+
+`LoggerUtil` expone utilidades para crear loggers consistentes:
+
+```java
+import core.log.LoggerUtil;
+import org.slf4j.Logger;
+
+Logger log = LoggerUtil.getLogger(MyClass.class);
+
+log.info("Iniciando prueba");
 LoggerUtil.setRootLevel("DEBUG");
 ```
 
-Los logs se escriben en consola y en `logs/qa-core.log`.
+Los logs se envían a la consola y al archivo `logs/qa-core.log`. El patrón y niveles se definen en
+`src/main/resources/logback.xml`.
+
+## Integraciones con Jira/Xray
+
+```java
+JiraClient jiraClient = new JiraClient();
+String testKey = jiraClient.createTest("QA", "Feature: Demo\n  Scenario: Valid login");
+jiraClient.addTestToExecution("EXEC-123", testKey);
+jiraClient.reportResult("EXEC-123", testKey, "PASS");
+```
+
+Las credenciales y URL se leen de `ConfigManager` (`jira.url`, `jira.user`, `jira.token`).
+
+## Integraciones con Jenkins
+
+```java
+JenkinsClient jenkinsClient = new JenkinsClient();
+jenkinsClient.triggerJob("qa-pipeline", Map.of("ENV", "qa"));
+String status = jenkinsClient.getJobStatus("qa-pipeline", 42);
+String logs = jenkinsClient.getJobLogs("qa-pipeline", 42);
+```
+
+Configurable vía `jenkins.url`, `jenkins.user`, `jenkins.token`.
+
+## Acceso a base de datos
+
+```java
+try (DBHelper db = new DBHelper()) {
+    List<Map<String, Object>> rows = db.query("SELECT * FROM users WHERE status = ?", "ACTIVE");
+    int updated = db.execute("UPDATE users SET last_login = NOW() WHERE id = ?", 1001);
+}
+```
+
+La conexión usa HikariCP. Las claves esperadas son `db.url`, `db.user`, `db.password`, `db.pool.maxSize`,
+entre otras. `DBHelper` cierra automáticamente los recursos mediante `AutoCloseable`.
+
+## Publicar artefactos
+
+### Publicación local (para pruebas rápidas)
+
+```bash
+gradle clean publishToMavenLocal
+# o ./gradlew clean publishToMavenLocal
+```
+
+Esto instala el JAR en `~/.m2/repository/com/company/qa/qa-core/1.0.0` para ser consumido con `mavenLocal()`.
+
+### Publicación en GitHub Packages
+
+El `build.gradle` ya incluye el bloque `publishing` apuntando a GitHub Packages. Asegurate de actualizar el
+`group`, `version` y la URL si cambiás de repositorio.
+
+```bash
+gradle clean publish
+```
+
+Gradle subirá el artefacto firmado con tus credenciales. Luego, los proyectos consumidores sólo deben
+agregar el repositorio y la dependencia como se mostró arriba.
+
+## Versionado y buenas prácticas
+
+- Incrementá la versión en `build.gradle` cada vez que cambies la API pública.
+- Mantené documentadas las variables de configuración esperadas en los servicios consumidores.
+- Ejecutá las pruebas (`gradle test`) antes de publicar para validar regresiones.
+
+## Estructura del repositorio
+
+```
+qa-core/
+├── src/main/java/core/
+│   ├── config/
+│   ├── db/
+│   ├── errors/
+│   ├── jenkins/
+│   ├── jira/
+│   ├── log/
+│   └── utils/
+├── src/main/resources/
+│   ├── application.properties
+│   └── logback.xml
+├── build.gradle
+└── settings.gradle
+```
+
+Con esta guía podés integrar `qa-core` en tus microservicios de QA para reutilizar toda la infraestructura
+común de configuración, logging, integraciones externas y utilidades.
