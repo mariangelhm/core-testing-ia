@@ -112,6 +112,14 @@ public final class ConfigManager {
         return value != null ? value : defaultValue;
     }
 
+    /**
+     * Retrieves the configuration value as an integer or returns the provided default.
+     *
+     * @param key configuration key to look up
+     * @param defaultValue fallback value when the key is missing
+     * @return the parsed integer value or {@code defaultValue} when absent
+     * @throws IllegalStateException when the stored value cannot be parsed to an integer
+     */
     public static int getInt(String key, int defaultValue) {
         String value = get(key);
         if (value == null) {
@@ -124,6 +132,13 @@ public final class ConfigManager {
         }
     }
 
+    /**
+     * Retrieves the configuration value as a boolean or returns the provided default.
+     *
+     * @param key configuration key to look up
+     * @param defaultValue fallback value when the key is missing
+     * @return the parsed boolean value or {@code defaultValue} when absent
+     */
     public static boolean getBoolean(String key, boolean defaultValue) {
         String value = get(key);
         if (value == null) {

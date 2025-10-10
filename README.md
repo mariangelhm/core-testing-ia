@@ -35,9 +35,14 @@ El artefacto se publica en GitHub Packages con el identificador `com.company.qa:
    ```groovy
    repositories {
        maven {
-           url = uri("https://maven.pkg.github.com/mariangelhm/qa-core")
+           def owner = project.findProperty("gpr.owner") ?: System.getenv("GITHUB_OWNER")
+           def repo = project.findProperty("gpr.repo") ?: System.getenv("GITHUB_REPO")
+           if (!owner || !repo) {
+               throw new GradleException("Configura gpr.owner/gpr.repo o exportá GITHUB_OWNER/GITHUB_REPO antes de resolver qa-core")
+           }
+           url = uri("https://maven.pkg.github.com/${owner}/${repo}")
            credentials {
-               username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_USERNAME")
+               username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_USERNAME") ?: owner
                password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
            }
        }
@@ -53,9 +58,19 @@ El artefacto se publica en GitHub Packages con el identificador `com.company.qa:
    }
    ```
 
-3. Proveé las credenciales como propiedades de Gradle (`~/.gradle/gradle.properties`) o variables de entorno
-   (`GITHUB_USERNAME`, `GITHUB_TOKEN`). El token debe tener permisos `read:packages` (y `write:packages` si
-   vas a publicar versiones nuevas).
+3. Proveé las credenciales y metadatos del repositorio como propiedades de Gradle (`~/.gradle/gradle.properties`)
+   o variables de entorno:
+
+   ```properties
+   gpr.owner=mariangelhm
+   gpr.repo=qa-core
+   gpr.user=GITHUB_USERNAME
+   gpr.key=GITHUB_TOKEN
+   ```
+
+   También podés exportar `GITHUB_OWNER`, `GITHUB_REPO` (o `GITHUB_REPOSITORY=owner/repo`), `GITHUB_USERNAME` y
+   `GITHUB_TOKEN` en tu terminal. El token debe tener permisos `read:packages` (y `write:packages` si vas a
+   publicar versiones nuevas).
 
 ## Configuración de entornos
 

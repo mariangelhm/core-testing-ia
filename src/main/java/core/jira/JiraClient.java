@@ -30,10 +30,26 @@ public class JiraClient {
     private final String baseUrl;
     private final String authHeader;
 
+    /**
+     * Creates a client using default HTTP and JSON utilities.
+     *
+     * @param baseUrl Jira base URL (e.g. {@code https://jira.company.com})
+     * @param username Jira username
+     * @param token API token or password
+     */
     public JiraClient(String baseUrl, String username, String token) {
         this(baseUrl, username, token, HttpClient.newBuilder().connectTimeout(DEFAULT_TIMEOUT).build(), new ObjectMapper());
     }
 
+    /**
+     * Creates a client providing custom HTTP and JSON helpers.
+     *
+     * @param baseUrl Jira base URL (e.g. {@code https://jira.company.com})
+     * @param username Jira username
+     * @param token API token or password
+     * @param httpClient HTTP client to reuse
+     * @param objectMapper object mapper to reuse
+     */
     public JiraClient(String baseUrl, String username, String token, HttpClient httpClient, ObjectMapper objectMapper) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.httpClient = httpClient;
@@ -42,6 +58,13 @@ public class JiraClient {
         this.authHeader = "Basic " + java.util.Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Creates a Jira test issue using the provided scenario description.
+     *
+     * @param projectKey Jira project key
+     * @param gherkinScenario description used as issue body
+     * @return created test issue key
+     */
     public String createTest(String projectKey, String gherkinScenario) {
         try {
             Map<String, Object> fields = new HashMap<>();
@@ -63,6 +86,12 @@ public class JiraClient {
         }
     }
 
+    /**
+     * Adds an existing test to the given execution key.
+     *
+     * @param executionKey Xray execution key
+     * @param testKey Jira test issue key
+     */
     public void addTestToExecution(String executionKey, String testKey) {
         Map<String, Object> payload = Map.of(
             "addTests", new String[] { testKey }
@@ -78,6 +107,13 @@ public class JiraClient {
         }
     }
 
+    /**
+     * Reports the execution status for a test inside an execution.
+     *
+     * @param executionKey Xray execution key
+     * @param testKey Jira test issue key
+     * @param status execution status (e.g. {@code PASS}, {@code FAIL})
+     */
     public void reportResult(String executionKey, String testKey, String status) {
         Map<String, Object> payload = Map.of(
             "testExecutionKey", executionKey,
@@ -95,6 +131,12 @@ public class JiraClient {
         }
     }
 
+    /**
+     * Retrieves the execution results for the provided execution key.
+     *
+     * @param executionKey Xray execution key
+     * @return execution results payload as {@link JsonNode}
+     */
     public JsonNode getExecutionResults(String executionKey) {
         try {
             HttpRequest request = baseRequest(String.format("/rest/raven/1.0/api/testexec/%s/test", urlEncode(executionKey)))

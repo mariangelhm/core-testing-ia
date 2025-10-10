@@ -29,6 +29,13 @@ public class DBHelper implements AutoCloseable {
 
     private final DataSource dataSource;
 
+    /**
+     * Creates a helper backed by an internal HikariCP data source.
+     *
+     * @param jdbcUrl JDBC connection string
+     * @param username database username
+     * @param password database password
+     */
     public DBHelper(String jdbcUrl, String username, String password) {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(jdbcUrl);
@@ -40,11 +47,23 @@ public class DBHelper implements AutoCloseable {
         LOGGER.info("DBHelper inicializado con URL {} y usuario {}", jdbcUrl, username);
     }
 
+    /**
+     * Creates a helper using a pre-configured {@link DataSource} instance.
+     *
+     * @param dataSource data source to reuse
+     */
     public DBHelper(DataSource dataSource) {
         this.dataSource = dataSource;
         LOGGER.info("DBHelper inicializado con DataSource personalizado {}", dataSource);
     }
 
+    /**
+     * Executes a SQL query delegating to {@link #select(String, Object...)} to keep backwards compatibility.
+     *
+     * @param sql SQL statement to execute
+     * @param params parameters bound to the prepared statement
+     * @return list of rows represented as column-value maps
+     */
     public List<Map<String, Object>> query(String sql, Object... params) {
         LOGGER.debug("query() invocado");
         return select(sql, params);
@@ -52,6 +71,10 @@ public class DBHelper implements AutoCloseable {
 
     /**
      * Executes a {@code SELECT} returning all rows as a list of column-name/value maps.
+     *
+     * @param sql SQL statement to execute
+     * @param params parameters bound to the prepared statement
+     * @return list of rows represented as column-value maps
      */
     public List<Map<String, Object>> select(String sql, Object... params) {
         LOGGER.info("Ejecutando SELECT: {} con parámetros {}", sql, Arrays.toString(params));
@@ -78,6 +101,10 @@ public class DBHelper implements AutoCloseable {
 
     /**
      * Returns the first row of a {@code SELECT} or {@code null} when no data matches the query.
+     *
+     * @param sql SQL statement to execute
+     * @param params parameters bound to the prepared statement
+     * @return first row of the result set or {@code null}
      */
     public Map<String, Object> selectFirst(String sql, Object... params) {
         LOGGER.debug("selectFirst() invocado para SQL {}", sql);
@@ -92,6 +119,11 @@ public class DBHelper implements AutoCloseable {
 
     /**
      * Returns the first column of the first row from a {@code SELECT}. Useful for scalar queries.
+     *
+     * @param <T> expected value type
+     * @param sql SQL statement to execute
+     * @param params parameters bound to the prepared statement
+     * @return first column of the first row or {@code null}
      */
     public <T> T selectValue(String sql, Object... params) {
         LOGGER.debug("selectValue() invocado para SQL {}", sql);
@@ -112,6 +144,11 @@ public class DBHelper implements AutoCloseable {
 
     /**
      * Extracts a value from a materialised result set, enforcing bounds and column presence.
+     *
+     * @param rows previously materialised result set
+     * @param rowIndex zero-based row index to retrieve
+     * @param column column name to extract
+     * @return cell value from the requested position
      */
     public Object extractValue(List<Map<String, Object>> rows, int rowIndex, String column) {
         LOGGER.debug("extractValue() invocado - filas: {}, índice: {}, columna: {}",
@@ -131,6 +168,13 @@ public class DBHelper implements AutoCloseable {
         return value;
     }
 
+    /**
+     * Executes a SQL statement delegating to {@link #update(String, Object...)} for backward compatibility.
+     *
+     * @param sql SQL statement to execute
+     * @param params parameters bound to the prepared statement
+     * @return number of affected rows
+     */
     public int execute(String sql, Object... params) {
         LOGGER.debug("execute() invocado");
         return update(sql, params);
@@ -138,6 +182,10 @@ public class DBHelper implements AutoCloseable {
 
     /**
      * Executes an {@code INSERT}, {@code UPDATE} or {@code DELETE} statement returning the affected row count.
+     *
+     * @param sql SQL statement to execute
+     * @param params parameters bound to the prepared statement
+     * @return number of affected rows
      */
     public int update(String sql, Object... params) {
         LOGGER.info("Ejecutando UPDATE: {} con parámetros {}", sql, Arrays.toString(params));
@@ -154,6 +202,11 @@ public class DBHelper implements AutoCloseable {
 
     /**
      * Verifies the first value returned by a query against the expected value.
+     *
+     * @param sql SQL statement to execute
+     * @param expected value expected from the first column of the first row
+     * @param params parameters bound to the prepared statement
+     * @return {@code true} when the value matches the expectation
      */
     public boolean validateValueEquals(String sql, Object expected, Object... params) {
         Object actual = selectValue(sql, params);
@@ -168,6 +221,10 @@ public class DBHelper implements AutoCloseable {
 
     /**
      * Throws a {@link DBException} if the value returned by the query does not match the expectation.
+     *
+     * @param sql SQL statement to execute
+     * @param expected value expected from the first column of the first row
+     * @param params parameters bound to the prepared statement
      */
     public void assertValueEquals(String sql, Object expected, Object... params) {
         if (!validateValueEquals(sql, expected, params)) {
@@ -177,6 +234,10 @@ public class DBHelper implements AutoCloseable {
 
     /**
      * Returns {@code true} when a {@code SELECT} yields no rows.
+     *
+     * @param sql SQL statement to execute
+     * @param params parameters bound to the prepared statement
+     * @return {@code true} when the result set is empty
      */
     public boolean isEmpty(String sql, Object... params) {
         LOGGER.debug("isEmpty() invocado para SQL {}", sql);
@@ -192,6 +253,9 @@ public class DBHelper implements AutoCloseable {
 
     /**
      * Throws a {@link DBException} when the query returns at least one row.
+     *
+     * @param sql SQL statement to execute
+     * @param params parameters bound to the prepared statement
      */
     public void assertEmpty(String sql, Object... params) {
         LOGGER.debug("assertEmpty() invocado para SQL {}", sql);

@@ -14,6 +14,13 @@ public final class FileUtil {
     private FileUtil() {
     }
 
+    /**
+     * Reads the entire file content using UTF-8 encoding.
+     *
+     * @param path file to read
+     * @return file contents as a single string
+     * @throws IllegalStateException when the file cannot be read
+     */
     public static String readString(Path path) {
         try {
             return Files.readString(path, StandardCharsets.UTF_8);
@@ -22,6 +29,13 @@ public final class FileUtil {
         }
     }
 
+    /**
+     * Reads all lines from the file using UTF-8 encoding.
+     *
+     * @param path file to read
+     * @return immutable list of lines from the file
+     * @throws IllegalStateException when the file cannot be read
+     */
     public static List<String> readLines(Path path) {
         try {
             return Files.readAllLines(path, StandardCharsets.UTF_8);
@@ -30,6 +44,13 @@ public final class FileUtil {
         }
     }
 
+    /**
+     * Writes text to the file creating missing parent directories using UTF-8 encoding.
+     *
+     * @param path destination file
+     * @param content text to write
+     * @throws IllegalStateException when the file cannot be written
+     */
     public static void writeString(Path path, String content) {
         try {
             Path parent = path.getParent();

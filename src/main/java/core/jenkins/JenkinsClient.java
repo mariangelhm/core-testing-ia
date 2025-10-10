@@ -30,10 +30,26 @@ public class JenkinsClient {
     private final String credentials;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Creates a client using default HTTP and JSON utilities.
+     *
+     * @param baseUrl Jenkins base URL (e.g. {@code https://jenkins.company.com})
+     * @param username Jenkins username
+     * @param token API token or password
+     */
     public JenkinsClient(String baseUrl, String username, String token) {
         this(baseUrl, username, token, new OkHttpClient(), new ObjectMapper());
     }
 
+    /**
+     * Creates a client providing custom HTTP and JSON helpers.
+     *
+     * @param baseUrl Jenkins base URL (e.g. {@code https://jenkins.company.com})
+     * @param username Jenkins username
+     * @param token API token or password
+     * @param client OkHttp client to reuse
+     * @param objectMapper object mapper to reuse
+     */
     public JenkinsClient(String baseUrl, String username, String token, OkHttpClient client, ObjectMapper objectMapper) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.client = client;
@@ -41,6 +57,12 @@ public class JenkinsClient {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Triggers a parameterised Jenkins job invoking {@code buildWithParameters}.
+     *
+     * @param jobName Jenkins job name
+     * @param params query parameters sent to the build endpoint
+     */
     public void triggerJob(String jobName, Map<String, String> params) {
         HttpUrl.Builder urlBuilder = HttpUrl.parse(baseUrl + "/job/" + jobName + "/buildWithParameters").newBuilder();
         if (params != null) {
@@ -65,6 +87,13 @@ public class JenkinsClient {
         execute(request, "Unable to trigger Jenkins job");
     }
 
+    /**
+     * Retrieves the job execution details as JSON.
+     *
+     * @param jobName Jenkins job name
+     * @param buildId build identifier
+     * @return JSON payload returned by Jenkins
+     */
     public String getJobStatus(String jobName, int buildId) {
         HttpUrl url = HttpUrl.parse(baseUrl + "/job/" + jobName + "/" + buildId + "/api/json");
         Request request = new Request.Builder()
@@ -75,6 +104,13 @@ public class JenkinsClient {
         return execute(request, "Unable to fetch job status");
     }
 
+    /**
+     * Retrieves the progressive text logs for a Jenkins build.
+     *
+     * @param jobName Jenkins job name
+     * @param buildId build identifier
+     * @return raw logs for the build
+     */
     public String getJobLogs(String jobName, int buildId) {
         HttpUrl url = HttpUrl.parse(baseUrl + "/job/" + jobName + "/" + buildId + "/logText/progressiveText");
         Request request = new Request.Builder()
@@ -85,6 +121,12 @@ public class JenkinsClient {
         return execute(request, "Unable to fetch job logs");
     }
 
+    /**
+     * Triggers a Jenkins job sending a JSON body payload.
+     *
+     * @param jobName Jenkins job name
+     * @param body request body serialised to JSON
+     */
     public void triggerJsonJob(String jobName, Map<String, Object> body) {
         HttpUrl url = HttpUrl.parse(baseUrl + "/job/" + jobName + "/build");
         RequestBody requestBody = createJsonBody(body);

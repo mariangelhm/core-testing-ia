@@ -49,6 +49,13 @@ public class RestServiceClient {
     private String requestBodyDescription;
 
     /**
+     * Creates a new REST client with default request specification builders.
+     */
+    public RestServiceClient() {
+        LOGGER.debug("RestServiceClient inicializado");
+    }
+
+    /**
      * Assigns the base URL for the request.
      *
      * @param url target endpoint
@@ -565,8 +572,11 @@ public class RestServiceClient {
      * Comparison operators for response time validations.
      */
     public enum TimeComparison {
+        /** Validates the response time is strictly lower than the expected value. */
         LESS_THAN,
+        /** Validates the response time is strictly greater than the expected value. */
         GREATER_THAN,
+        /** Validates the response time matches the expected value. */
         EQUAL_TO
     }
 }
