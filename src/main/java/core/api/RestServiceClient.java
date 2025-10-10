@@ -80,7 +80,9 @@ public class RestServiceClient {
      * @return client instance for chaining
      */
     public RestServiceClient addHeader(String name, Object value) {
-        specBuilder.addHeader(name, value);
+        Objects.requireNonNull(name, "name must not be null");
+        Objects.requireNonNull(value, "value must not be null");
+        specBuilder.addHeader(name, value.toString());
         return this;
     }
 
