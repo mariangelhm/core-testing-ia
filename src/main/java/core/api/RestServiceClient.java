@@ -33,13 +33,13 @@ public class RestServiceClient {
 
     private static final Logger LOGGER = LoggerUtil.getLogger(RestServiceClient.class);
     private static final String BOX_TOP =
-            "╔══════════════════════════════════════════════════════════════════════════════════════╗";
+            "+========================================================================================+";
     private static final String BOX_DIVIDER =
-            "╠══════════════════════════════════════════════════════════════════════════════════════╣";
+            "+----------------------------------------------------------------------------------------+";
     private static final String BOX_SECTION =
-            "╟──────────────────────────────────────────────────────────────────────────────────────╢";
+            "|----------------------------------------------------------------------------------------|";
     private static final String BOX_BOTTOM =
-            "╚══════════════════════════════════════════════════════════════════════════════════════╝";
+            "+========================================================================================+";
 
     private final RequestSpecBuilder specBuilder = new RequestSpecBuilder();
     private final Map<String, String> requestHeaders = new LinkedHashMap<>();
@@ -570,7 +570,7 @@ public class RestServiceClient {
 
     private void logLine(String label, Object value) {
         String paddedLabel = String.format("%-15s", label);
-        LOGGER.info("║ {} : {}", paddedLabel, toSingleLine(value));
+        LOGGER.info("| {} : {}", paddedLabel, toSingleLine(value));
     }
 
     private String toSingleLine(Object value) {
