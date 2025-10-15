@@ -4,6 +4,11 @@ import java.security.SecureRandom;
 import java.util.Locale;
 import java.util.Random;
 
+import org.slf4j.Logger;
+
+import core.log.LoggerUtil;
+import core.log.StructuredLog;
+
 /**
  * Random data generator for test fixtures.
  */
@@ -11,6 +16,7 @@ public final class RandomDataUtil {
 
     private static final char[] ALPHANUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".toCharArray();
     private static final Random RANDOM = new SecureRandom();
+    private static final Logger LOGGER = LoggerUtil.getLogger(RandomDataUtil.class);
 
     private RandomDataUtil() {
     }
@@ -26,7 +32,13 @@ public final class RandomDataUtil {
         for (int i = 0; i < length; i++) {
             builder.append(ALPHANUM[RANDOM.nextInt(ALPHANUM.length)]);
         }
-        return builder.toString();
+        String result = builder.toString();
+        logGeneration("CADENA",
+                new String[][] {
+                        { "Longitud", String.valueOf(length) },
+                        { "Resultado", result }
+                });
+        return result;
     }
 
     /**
@@ -35,7 +47,13 @@ public final class RandomDataUtil {
      * @return random email
      */
     public static String randomEmail() {
-        return String.format(Locale.ROOT, "%s@example.com", randomString(10).toLowerCase(Locale.ROOT));
+        String localPart = randomString(10).toLowerCase(Locale.ROOT);
+        String email = String.format(Locale.ROOT, "%s@example.com", localPart);
+        logGeneration("EMAIL", new String[][] {
+                { "Usuario", localPart },
+                { "Resultado", email }
+        });
+        return email;
     }
 
     /**
@@ -46,6 +64,20 @@ public final class RandomDataUtil {
      * @return random integer between the provided bounds
      */
     public static int randomInt(int min, int max) {
-        return RANDOM.nextInt((max - min) + 1) + min;
+        int value = RANDOM.nextInt((max - min) + 1) + min;
+        logGeneration("ENTERO", new String[][] {
+                { "M\u00EDnimo", String.valueOf(min) },
+                { "M\u00E1ximo", String.valueOf(max) },
+                { "Resultado", String.valueOf(value) }
+        });
+        return value;
+    }
+
+    private static void logGeneration(String tipo, String[][] pairs) {
+        StructuredLog.Block block = StructuredLog.open(LOGGER, "DATOS ALEATORIOS", tipo);
+        for (String[] pair : pairs) {
+            block.line(pair[0], pair[1]);
+        }
+        block.close("Generado");
     }
 }

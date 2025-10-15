@@ -2,6 +2,8 @@ package core.jenkins;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -9,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import core.errors.JenkinsException;
 import core.log.LoggerUtil;
+import core.log.StructuredLog;
+import org.slf4j.Logger;
 import okhttp3.Credentials;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
@@ -24,6 +28,7 @@ import okio.BufferedSink;
 public class JenkinsClient {
 
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+    private static final Logger LOGGER = LoggerUtil.getLogger(JenkinsClient.class);
 
     private final OkHttpClient client;
     private final String baseUrl;
@@ -84,7 +89,7 @@ public class JenkinsClient {
             .header("Authorization", credentials)
             .post(body)
             .build();
-        execute(request, "Unable to trigger Jenkins job");
+        execute(request, "Unable to trigger Jenkins job", null);
     }
 
     /**
@@ -101,7 +106,7 @@ public class JenkinsClient {
             .header("Authorization", credentials)
             .get()
             .build();
-        return execute(request, "Unable to fetch job status");
+        return execute(request, "Unable to fetch job status", null);
     }
 
     /**
@@ -118,7 +123,7 @@ public class JenkinsClient {
             .header("Authorization", credentials)
             .get()
             .build();
-        return execute(request, "Unable to fetch job logs");
+        return execute(request, "Unable to fetch job logs", null);
     }
 
     /**
@@ -129,28 +134,14 @@ public class JenkinsClient {
      */
     public void triggerJsonJob(String jobName, Map<String, Object> body) {
         HttpUrl url = HttpUrl.parse(baseUrl + "/job/" + jobName + "/build");
-        RequestBody requestBody = createJsonBody(body);
+        String payload = serialize(body);
+        RequestBody requestBody = RequestBody.create(payload, JSON);
         Request request = new Request.Builder()
             .url(url)
             .header("Authorization", credentials)
             .post(requestBody)
             .build();
-        execute(request, "Unable to trigger Jenkins job with JSON body");
-    }
-
-    private RequestBody createJsonBody(Map<String, Object> body) {
-        String payload = serialize(body);
-        return new RequestBody() {
-            @Override
-            public MediaType contentType() {
-                return JSON;
-            }
-
-            @Override
-            public void writeTo(BufferedSink sink) throws IOException {
-                sink.writeString(payload, StandardCharsets.UTF_8);
-            }
-        };
+        execute(request, "Unable to trigger Jenkins job with JSON body", payload);
     }
 
     private String serialize(Map<String, Object> body) {
@@ -161,16 +152,43 @@ public class JenkinsClient {
         }
     }
 
-    private String execute(Request request, String errorMessage) {
+    private String execute(Request request, String errorMessage, String requestBody) {
+        String summary = request.method() + " " + request.url().encodedPath();
+        StructuredLog.Block block = StructuredLog.open(LOGGER, "JENKINS", summary);
+        block.line("URL", request.url());
+        if (requestBody != null) {
+            block.line("Body", requestBody);
+        }
+        long start = System.nanoTime();
         try (Response response = client.newCall(request).execute()) {
+            Duration duration = Duration.ofNanos(System.nanoTime() - start);
+            String responseBody = response.body() != null ? response.body().string() : "";
+            block.section("RESPUESTA");
+            block.line("Status", response.code());
+            block.line("Body", responseBody);
             if (!response.isSuccessful()) {
-                String responseBody = response.body() != null ? response.body().string() : "";
-                LoggerUtil.getLogger(JenkinsClient.class)
-                    .error("Jenkins API responded with status {} and body {}", response.code(), responseBody);
+                block.section("ERROR");
+                block.error("Motivo", errorMessage);
+                block.close(String.format(Locale.ROOT, "%s | %s", summary, StructuredLog.formatDuration(duration)));
+                StructuredLog.openAlert(LOGGER, "JENKINS - RESPUESTA NO EXITOSA")
+                        .line("Solicitud", summary)
+                        .line("Status", response.code())
+                        .line("Body", StructuredLog.abbreviate(responseBody))
+                        .close();
                 throw new JenkinsException(errorMessage + ": " + response.code());
             }
-            return response.body() != null ? response.body().string() : "";
+            block.close(String.format(Locale.ROOT, "%s | %s", summary, StructuredLog.formatDuration(duration)));
+            return responseBody;
         } catch (IOException e) {
+            Duration duration = Duration.ofNanos(System.nanoTime() - start);
+            block.section("ERROR");
+            block.error("Excepci\u00F3n", e.getMessage());
+            block.close(String.format(Locale.ROOT, "%s | error tras %s", summary,
+                    StructuredLog.formatDuration(duration)));
+            StructuredLog.openAlert(LOGGER, errorMessage)
+                    .line("Solicitud", summary)
+                    .line("Detalle", e.getMessage())
+                    .close();
             throw new JenkinsException(errorMessage, e);
         }
     }

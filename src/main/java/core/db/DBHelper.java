@@ -5,10 +5,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -19,6 +21,7 @@ import com.zaxxer.hikari.HikariDataSource;
 
 import core.errors.DBException;
 import core.log.LoggerUtil;
+import core.log.StructuredLog;
 
 /**
  * Simplified database helper powered by HikariCP to share connection logic across services.
@@ -77,7 +80,10 @@ public class DBHelper implements AutoCloseable {
      * @return list of rows represented as column-value maps
      */
     public List<Map<String, Object>> select(String sql, Object... params) {
-        LOGGER.info("Ejecutando SELECT: {} con parámetros {}", sql, Arrays.toString(params));
+        StructuredLog.Block block = StructuredLog.open(LOGGER, "BASE DE DATOS", "SELECT");
+        block.line("SQL", sql);
+        block.line("Par\u00E1metros", Arrays.toString(params));
+        long start = System.nanoTime();
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = prepareStatement(connection, sql, params);
              ResultSet resultSet = statement.executeQuery()) {
@@ -91,10 +97,18 @@ public class DBHelper implements AutoCloseable {
                 }
                 results.add(row);
             }
-            LOGGER.info("SELECT finalizado: {} filas devueltas", results.size());
+            block.section("RESULTADO");
+            block.line("Filas", results.size());
+            block.close(String.format(Locale.ROOT, "SELECT completado | %s",
+                    StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
             return results;
         } catch (SQLException e) {
-            LOGGER.error("Error ejecutando SELECT {}", sql, e);
+            block.section("ERROR");
+            block.error("SQLState", e.getSQLState());
+            block.error("C\u00F3digo", e.getErrorCode());
+            block.error("Mensaje", e.getMessage());
+            block.close(String.format(Locale.ROOT, "SELECT con error | %s",
+                    StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
             throw new DBException("Error executing query", e);
         }
     }
@@ -110,10 +124,10 @@ public class DBHelper implements AutoCloseable {
         LOGGER.debug("selectFirst() invocado para SQL {}", sql);
         List<Map<String, Object>> results = select(sql, params);
         if (results.isEmpty()) {
-            LOGGER.info("selectFirst() no encontró resultados para SQL {}", sql);
+            LOGGER.info("selectFirst() no encontr\u00F3 resultados para SQL {}", sql);
             return null;
         }
-        LOGGER.info("selectFirst() retornó la primera fila para SQL {}", sql);
+        LOGGER.info("selectFirst() retorn\u00F3 la primera fila para SQL {}", sql);
         return results.get(0);
     }
 
@@ -129,11 +143,11 @@ public class DBHelper implements AutoCloseable {
         LOGGER.debug("selectValue() invocado para SQL {}", sql);
         Map<String, Object> firstRow = selectFirst(sql, params);
         if (firstRow == null) {
-            LOGGER.info("selectValue() no encontró valor para SQL {}", sql);
+            LOGGER.info("selectValue() no encontr\u00F3 valor para SQL {}", sql);
             return null;
         }
         if (firstRow.isEmpty()) {
-            LOGGER.warn("selectValue() encontró fila vacía para SQL {}", sql);
+            LOGGER.warn("selectValue() encontr\u00F3 fila vac\u00EDa para SQL {}", sql);
             return null;
         }
         @SuppressWarnings("unchecked")
@@ -151,7 +165,7 @@ public class DBHelper implements AutoCloseable {
      * @return cell value from the requested position
      */
     public Object extractValue(List<Map<String, Object>> rows, int rowIndex, String column) {
-        LOGGER.debug("extractValue() invocado - filas: {}, índice: {}, columna: {}",
+        LOGGER.debug("extractValue() invocado - filas: {}, \u00EDndice: {}, columna: {}",
                 rows != null ? rows.size() : 0, rowIndex, column);
         if (rows == null || rows.isEmpty()) {
             throw new DBException("Result set is empty; cannot extract value");
@@ -188,14 +202,25 @@ public class DBHelper implements AutoCloseable {
      * @return number of affected rows
      */
     public int update(String sql, Object... params) {
-        LOGGER.info("Ejecutando UPDATE: {} con parámetros {}", sql, Arrays.toString(params));
+        StructuredLog.Block block = StructuredLog.open(LOGGER, "BASE DE DATOS", "UPDATE");
+        block.line("SQL", sql);
+        block.line("Par\u00E1metros", Arrays.toString(params));
+        long start = System.nanoTime();
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = prepareStatement(connection, sql, params)) {
             int affected = statement.executeUpdate();
-            LOGGER.info("UPDATE finalizado: {} filas afectadas", affected);
+            block.section("RESULTADO");
+            block.line("Filas afectadas", affected);
+            block.close(String.format(Locale.ROOT, "UPDATE completado | %s",
+                    StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
             return affected;
         } catch (SQLException e) {
-            LOGGER.error("Error ejecutando UPDATE {}", sql, e);
+            block.section("ERROR");
+            block.error("SQLState", e.getSQLState());
+            block.error("C\u00F3digo", e.getErrorCode());
+            block.error("Mensaje", e.getMessage());
+            block.close(String.format(Locale.ROOT, "UPDATE con error | %s",
+                    StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
             throw new DBException("Error executing statement", e);
         }
     }
@@ -265,7 +290,7 @@ public class DBHelper implements AutoCloseable {
     }
 
     private PreparedStatement prepareStatement(Connection connection, String sql, Object... params) throws SQLException {
-        LOGGER.debug("Preparando PreparedStatement para SQL {} con parámetros {}", sql, Arrays.toString(params));
+        LOGGER.debug("Preparando PreparedStatement para SQL {} con par\u00E1metros {}", sql, Arrays.toString(params));
         PreparedStatement statement = connection.prepareStatement(sql);
         if (params != null) {
             for (int i = 0; i < params.length; i++) {
