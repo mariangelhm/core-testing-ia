@@ -32,6 +32,14 @@ import io.restassured.specification.RequestSpecification;
 public class RestServiceClient {
 
     private static final Logger LOGGER = LoggerUtil.getLogger(RestServiceClient.class);
+    private static final String BOX_TOP =
+            "+========================================================================================+";
+    private static final String BOX_DIVIDER =
+            "+----------------------------------------------------------------------------------------+";
+    private static final String BOX_SECTION =
+            "|----------------------------------------------------------------------------------------|";
+    private static final String BOX_BOTTOM =
+            "+========================================================================================+";
 
     private final RequestSpecBuilder specBuilder = new RequestSpecBuilder();
     private final Map<String, String> requestHeaders = new LinkedHashMap<>();
@@ -525,32 +533,55 @@ public class RestServiceClient {
     }
 
     private void logRequest() {
-        LOGGER.info("===>> Solicitud REST [{}] {}", method, url);
-        LOGGER.info("Headers request: {}", requestHeaders.isEmpty() ? "{}" : requestHeaders);
-        LOGGER.info("Query params: {}", requestQueryParams.isEmpty() ? "{}" : requestQueryParams);
-        LOGGER.info("Path params: {}", requestPathParams.isEmpty() ? "{}" : requestPathParams);
-        LOGGER.info("Cookies request: {}", requestCookies.isEmpty() ? "{}" : requestCookies);
-        LOGGER.info("Body request: {}", requestBodyDescription != null ? requestBodyDescription :
-                (requestBody == null ? "<sin cuerpo>" : requestBody));
+        LOGGER.info(BOX_TOP);
+        logLine("INICIO SERVICIO", String.format("[%s] %s", method, url));
+        LOGGER.info(BOX_DIVIDER);
+        logLine("Headers", requestHeaders.isEmpty() ? "{}" : requestHeaders);
+        logLine("Query params", requestQueryParams.isEmpty() ? "{}" : requestQueryParams);
+        logLine("Path params", requestPathParams.isEmpty() ? "{}" : requestPathParams);
+        logLine("Cookies", requestCookies.isEmpty() ? "{}" : requestCookies);
+        Object bodyRepresentation = requestBodyDescription != null ? requestBodyDescription
+                : (requestBody == null ? "<sin cuerpo>" : requestBody);
+        logLine("Body", bodyRepresentation);
         if (!requestFormParams.isEmpty()) {
-            LOGGER.info("Form params: {}", requestFormParams);
+            logLine("Form params", requestFormParams);
         }
         if (!requestMultiparts.isEmpty()) {
-            LOGGER.info("Partes multipart: {}", requestMultiparts);
+            logLine("Multipart", requestMultiparts);
         }
-        LOGGER.info("Redirecciones habilitadas: {}", followRedirects);
+        logLine("Redirecciones", followRedirects);
     }
 
     private void logResponse(long elapsedMillis) {
-        LOGGER.info("<<== Respuesta HTTP status={} ({}) ms", response.getStatusCode(), elapsedMillis);
-        LOGGER.info("Headers response: {}", response.getHeaders().asList());
-        LOGGER.info("Cookies response: {}", response.getCookies());
+        LOGGER.info(BOX_SECTION);
+        logLine("FIN SERVICIO", String.format("[%s] %s", method, url));
+        LOGGER.info(BOX_DIVIDER);
+        logLine("STATUS", String.format("%d | %d ms", response.getStatusCode(), elapsedMillis));
+        logLine("Headers", response.getHeaders().asList());
+        logLine("Cookies", response.getCookies());
         try {
-            String pretty = response.getBody() != null ? response.getBody().asPrettyString() : "<sin cuerpo>";
-            LOGGER.info("Body response:\n{}", pretty);
+            String body = response.getBody() != null ? response.getBody().asString() : "<sin cuerpo>";
+            logLine("Body", toSingleLine(body));
         } catch (Exception ex) {
             LOGGER.warn("No fue posible formatear el cuerpo de la respuesta", ex);
         }
+        LOGGER.info(BOX_BOTTOM);
+    }
+
+    private void logLine(String label, Object value) {
+        String paddedLabel = String.format("%-15s", label);
+        LOGGER.info("| {} : {}", paddedLabel, toSingleLine(value));
+    }
+
+    private String toSingleLine(Object value) {
+        if (value == null) {
+            return "<null>";
+        }
+        String text = String.valueOf(value);
+        String collapsed = text.replaceAll("\\s*\r?\n\\s*", " ")
+                .replaceAll("\\s{2,}", " ")
+                .trim();
+        return collapsed.isEmpty() ? "<vacío>" : collapsed;
     }
 
     private String formatParams(Object... params) {
