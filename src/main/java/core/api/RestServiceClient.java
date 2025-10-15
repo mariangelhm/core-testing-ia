@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 
 import core.db.DBHelper;
 import core.log.LoggerUtil;
+import core.log.StructuredLog;
 import io.restassured.RestAssured;
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.config.RedirectConfig;
@@ -32,24 +33,6 @@ import io.restassured.specification.RequestSpecification;
 public class RestServiceClient {
 
     private static final Logger LOGGER = LoggerUtil.getLogger(RestServiceClient.class);
-    private static final String BOX_TOP =
-            "+========================================================================================+";
-    private static final String BOX_DIVIDER =
-            "+----------------------------------------------------------------------------------------+";
-    private static final String BOX_SECTION =
-            "|----------------------------------------------------------------------------------------|";
-    private static final String BOX_BOTTOM =
-            "+========================================================================================+";
-    private static final String ALERT_TOP =
-            "+========================================================================================+";
-    private static final String ALERT_HEADER =
-            "|>>>>>>>>>>>>>>>>>>>>>>>>>>>>  VALIDACIÓN FALLIDA DETECTADA  <<<<<<<<<<<<<<<<<<<<<<<<<<<<|";
-    private static final String ALERT_DIVIDER =
-            "+----------------------------------------------------------------------------------------+";
-    private static final String ALERT_BOTTOM =
-            "+========================================================================================+";
-    private static final int PREVIEW_LIMIT = 180;
-
     private final RequestSpecBuilder specBuilder = new RequestSpecBuilder();
     private final Map<String, String> requestHeaders = new LinkedHashMap<>();
     private final Map<String, Object> requestQueryParams = new LinkedHashMap<>();
@@ -313,12 +296,23 @@ public class RestServiceClient {
         RequestSpecification request = RestAssured.given(baseSpecification)
                 .config(RestAssuredConfig.config()
                         .redirect(RedirectConfig.redirectConfig().followRedirects(followRedirects)));
-        logRequest();
+        StructuredLog.Block logBlock = logRequest();
         long start = System.nanoTime();
-        response = request.request(method, url);
-        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-        logResponse(elapsedMillis);
-        return response;
+        try {
+            response = request.request(method, url);
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            logResponse(logBlock, elapsedMillis);
+            logBlock.close(String.format(Locale.ROOT, "[%s] %s | %s", method, url,
+                    StructuredLog.formatDuration(Duration.ofMillis(elapsedMillis))));
+            return response;
+        } catch (RuntimeException ex) {
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            logBlock.section("ERROR");
+            logBlock.error("Excepción", ex.getMessage());
+            logBlock.close(String.format(Locale.ROOT, "[%s] %s | error tras %s", method, url,
+                    StructuredLog.formatDuration(Duration.ofMillis(elapsedMillis))));
+            throw ex;
+        }
     }
 
     private Response ensureResponse() {
@@ -363,7 +357,7 @@ public class RestServiceClient {
             LinkedHashMap<String, Object> details = new LinkedHashMap<>();
             details.put("Petición", requestSummary());
             details.put("Texto esperado", expectedText);
-            details.put("Body recibido", abbreviate(body));
+            details.put("Body recibido", StructuredLog.abbreviate(body));
             logAssertionFailure("Body sin texto esperado", details);
             throw new AssertionError("El cuerpo de la respuesta no contiene el texto esperado: " + expectedText);
         }
@@ -521,7 +515,7 @@ public class RestServiceClient {
         List<Map<String, Object>> results = executeQuery(sql, params);
         if (!results.isEmpty()) {
             LinkedHashMap<String, Object> details = new LinkedHashMap<>();
-            details.put("Consulta", abbreviate(sql));
+            details.put("Consulta", StructuredLog.abbreviate(sql));
             details.put("Parámetros", formatParams(params));
             details.put("Registros devueltos", results.size());
             logAssertionFailure("La consulta debía retornar vacío", details);
@@ -568,67 +562,55 @@ public class RestServiceClient {
         LOGGER.debug("DBHelper disponible para operaciones de base de datos");
     }
 
-    private void logRequest() {
-        LOGGER.info(BOX_TOP);
-        logLine("INICIO SERVICIO", String.format("[%s] %s", method, url));
-        LOGGER.info(BOX_DIVIDER);
-        logLine("Headers", requestHeaders.isEmpty() ? "{}" : requestHeaders);
-        logLine("Query params", requestQueryParams.isEmpty() ? "{}" : requestQueryParams);
-        logLine("Path params", requestPathParams.isEmpty() ? "{}" : requestPathParams);
-        logLine("Cookies", requestCookies.isEmpty() ? "{}" : requestCookies);
+    private StructuredLog.Block logRequest() {
+        StructuredLog.Block block = StructuredLog.open(LOGGER, "SERVICIO", String.format(Locale.ROOT, "[%s] %s", method, url));
+        block.line("Headers", requestHeaders.isEmpty() ? "{}" : requestHeaders);
+        block.line("Query params", requestQueryParams.isEmpty() ? "{}" : requestQueryParams);
+        block.line("Path params", requestPathParams.isEmpty() ? "{}" : requestPathParams);
+        block.line("Cookies", requestCookies.isEmpty() ? "{}" : requestCookies);
         Object bodyRepresentation = requestBodyDescription != null ? requestBodyDescription
                 : (requestBody == null ? "<sin cuerpo>" : requestBody);
-        logLine("Body", bodyRepresentation);
+        block.line("Body", bodyRepresentation);
         if (!requestFormParams.isEmpty()) {
-            logLine("Form params", requestFormParams);
+            block.line("Form params", requestFormParams);
         }
         if (!requestMultiparts.isEmpty()) {
-            logLine("Multipart", requestMultiparts);
+            block.line("Multipart", requestMultiparts);
         }
-        logLine("Redirecciones", followRedirects);
+        block.line("Redirecciones", followRedirects);
+        return block;
     }
 
-    private void logResponse(long elapsedMillis) {
-        LOGGER.info(BOX_SECTION);
-        logLine("FIN SERVICIO", String.format("[%s] %s", method, url));
-        LOGGER.info(BOX_DIVIDER);
-        logLine("STATUS", String.format("%d | %d ms", response.getStatusCode(), elapsedMillis));
-        logLine("Headers", response.getHeaders().asList());
-        logLine("Cookies", response.getCookies());
+    private void logResponse(StructuredLog.Block block, long elapsedMillis) {
+        block.section("RESPUESTA");
+        block.line("STATUS", String.format(Locale.ROOT, "%d | %d ms", response.getStatusCode(), elapsedMillis));
+        block.line("Headers", response.getHeaders().asList());
+        block.line("Cookies", response.getCookies());
         try {
             String body = response.getBody() != null ? response.getBody().asString() : "<sin cuerpo>";
-            logLine("Body", toSingleLine(body));
+            block.line("Body", body);
         } catch (Exception ex) {
-            LOGGER.warn("No fue posible formatear el cuerpo de la respuesta", ex);
+            block.warn("Body", "No fue posible formatear el cuerpo de la respuesta: " + ex.getMessage());
         }
-        LOGGER.info(BOX_BOTTOM);
-    }
-
-    private void logLine(String label, Object value) {
-        String paddedLabel = String.format("%-15s", label);
-        LOGGER.info("| {} : {}", paddedLabel, toSingleLine(value));
     }
 
     private void logAssertionFailure(String failureTitle, LinkedHashMap<String, Object> details) {
-        LOGGER.error(ALERT_TOP);
-        LOGGER.error(ALERT_HEADER);
-        LOGGER.error(ALERT_DIVIDER);
-        logFailureLine("Validación", failureTitle);
-        if (details != null && !details.isEmpty()) {
-            LOGGER.error(ALERT_DIVIDER);
-            details.forEach(this::logFailureLine);
+        StructuredLog.Alert alert = StructuredLog.openAlert(LOGGER, "VALIDACIÓN FALLIDA DETECTADA");
+        alert.line("Validación", failureTitle);
+        if (details != null && !details.containsKey("Petición")) {
+            alert.line("Petición", requestSummary());
+        }
+        if (details != null) {
+            details.forEach(alert::line);
         }
         StackTraceElement origin = resolveFailureOrigin();
         if (origin != null) {
-            LOGGER.error(ALERT_DIVIDER);
-            logFailureLine("Ubicación", formatLocation(origin));
+            alert.section("UBICACIÓN");
+            alert.line("Clase", origin.getClassName());
+            alert.line("Método", origin.getMethodName());
+            alert.line("Línea", origin.getLineNumber());
         }
-        LOGGER.error(ALERT_BOTTOM);
-    }
-
-    private void logFailureLine(String label, Object value) {
-        String paddedLabel = String.format("%-20s", label);
-        LOGGER.error("| {} : {}", paddedLabel, toSingleLine(value));
+        alert.close();
     }
 
     private StackTraceElement resolveFailureOrigin() {
@@ -644,33 +626,10 @@ public class RestServiceClient {
         return null;
     }
 
-    private String formatLocation(StackTraceElement origin) {
-        return origin.getClassName() + "#" + origin.getMethodName() + ":" + origin.getLineNumber();
-    }
-
     private String requestSummary() {
         String httpMethod = method != null ? method.name() : "<sin método>";
         String endpoint = url != null ? url : "<sin url>";
         return httpMethod + " " + endpoint;
-    }
-
-    private String abbreviate(Object value) {
-        String text = toSingleLine(value);
-        if (text.length() <= PREVIEW_LIMIT) {
-            return text;
-        }
-        return text.substring(0, PREVIEW_LIMIT - 3) + "...";
-    }
-
-    private String toSingleLine(Object value) {
-        if (value == null) {
-            return "<null>";
-        }
-        String text = String.valueOf(value);
-        String collapsed = text.replaceAll("\\s*\r?\n\\s*", " ")
-                .replaceAll("\\s{2,}", " ")
-                .trim();
-        return collapsed.isEmpty() ? "<vacío>" : collapsed;
     }
 
     private String formatParams(Object... params) {

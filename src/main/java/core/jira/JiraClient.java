@@ -9,6 +9,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,6 +17,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import core.errors.JiraException;
 import core.log.LoggerUtil;
+import core.log.StructuredLog;
+import org.slf4j.Logger;
 
 /**
  * Minimal Jira/Xray REST client supporting the typical operations required by automation.
@@ -24,6 +27,7 @@ public class JiraClient {
 
     private static final String CONTENT_TYPE_JSON = "application/json";
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
+    private static final Logger LOGGER = LoggerUtil.getLogger(JiraClient.class);
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -74,8 +78,7 @@ public class JiraClient {
             fields.put("description", gherkinScenario);
 
             Map<String, Object> payload = Map.of("fields", fields);
-            HttpResponse<String> response = sendPost("/rest/api/2/issue", payload);
-            ensureSuccess(response, "Unable to create Jira Test");
+            HttpResponse<String> response = sendPost("/rest/api/2/issue", payload, "Unable to create Jira Test");
             JsonNode node = objectMapper.readTree(response.body());
             return node.path("key").asText();
         } catch (InterruptedException e) {
@@ -97,8 +100,8 @@ public class JiraClient {
             "addTests", new String[] { testKey }
         );
         try {
-            HttpResponse<String> response = sendPost(String.format("/rest/raven/1.0/api/testexec/%s/test", urlEncode(executionKey)), payload);
-            ensureSuccess(response, "Unable to add test to execution");
+            sendPost(String.format("/rest/raven/1.0/api/testexec/%s/test", urlEncode(executionKey)), payload,
+                    "Unable to add test to execution");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new JiraException("Error adding test to execution", e);
@@ -121,8 +124,7 @@ public class JiraClient {
             "status", status
         );
         try {
-            HttpResponse<String> response = sendPost("/rest/raven/1.0/api/import/execution", payload);
-            ensureSuccess(response, "Unable to report execution result");
+            sendPost("/rest/raven/1.0/api/import/execution", payload, "Unable to report execution result");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new JiraException("Error reporting test result", e);
@@ -139,11 +141,11 @@ public class JiraClient {
      */
     public JsonNode getExecutionResults(String executionKey) {
         try {
-            HttpRequest request = baseRequest(String.format("/rest/raven/1.0/api/testexec/%s/test", urlEncode(executionKey)))
+            String path = String.format("/rest/raven/1.0/api/testexec/%s/test", urlEncode(executionKey));
+            HttpRequest request = baseRequest(path)
                 .GET()
                 .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            ensureSuccess(response, "Unable to retrieve execution results");
+            HttpResponse<String> response = send(request, "GET " + path, "Unable to retrieve execution results", null);
             return objectMapper.readTree(response.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -153,13 +155,69 @@ public class JiraClient {
         }
     }
 
-    private HttpResponse<String> sendPost(String path, Object payload) throws IOException, InterruptedException {
+    private HttpResponse<String> sendPost(String path, Object payload, String errorMessage)
+            throws IOException, InterruptedException {
         String body = objectMapper.writeValueAsString(payload);
         HttpRequest request = baseRequest(path)
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .header("Content-Type", CONTENT_TYPE_JSON)
             .build();
-        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        return send(request, "POST " + path, errorMessage, body);
+    }
+
+    private HttpResponse<String> send(HttpRequest request, String summary, String errorMessage, String requestBody)
+            throws IOException, InterruptedException {
+        StructuredLog.Block block = StructuredLog.open(LOGGER, "JIRA", summary);
+        block.line("URL", request.uri());
+        if (requestBody != null && !requestBody.isBlank()) {
+            block.line("Body", requestBody);
+        }
+        long start = System.nanoTime();
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            Duration duration = Duration.ofNanos(System.nanoTime() - start);
+            block.section("RESPUESTA");
+            block.line("Status", response.statusCode());
+            block.line("Body", response.body());
+            boolean success = response.statusCode() >= 200 && response.statusCode() < 300;
+            if (!success) {
+                block.section("ERROR");
+                block.error("Motivo", errorMessage);
+            }
+            block.close(String.format(Locale.ROOT, "%s | %s", summary, StructuredLog.formatDuration(duration)));
+            if (!success) {
+                StructuredLog.openAlert(LOGGER, "JIRA - RESPUESTA NO EXITOSA")
+                        .line("Solicitud", summary)
+                        .line("Status", response.statusCode())
+                        .line("Body", StructuredLog.abbreviate(response.body()))
+                        .close();
+                throw new JiraException(errorMessage + ": " + response.statusCode());
+            }
+            return response;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Duration duration = Duration.ofNanos(System.nanoTime() - start);
+            block.section("ERROR");
+            block.error("Interrupción", e.getMessage());
+            block.close(String.format(Locale.ROOT, "%s | interrumpido tras %s", summary,
+                    StructuredLog.formatDuration(duration)));
+            StructuredLog.openAlert(LOGGER, errorMessage)
+                    .line("Solicitud", summary)
+                    .line("Detalle", e.getMessage())
+                    .close();
+            throw e;
+        } catch (IOException e) {
+            Duration duration = Duration.ofNanos(System.nanoTime() - start);
+            block.section("ERROR");
+            block.error("Excepción", e.getMessage());
+            block.close(String.format(Locale.ROOT, "%s | error tras %s", summary,
+                    StructuredLog.formatDuration(duration)));
+            StructuredLog.openAlert(LOGGER, errorMessage)
+                    .line("Solicitud", summary)
+                    .line("Detalle", e.getMessage())
+                    .close();
+            throw e;
+        }
     }
 
     private HttpRequest.Builder baseRequest(String path) {
@@ -169,14 +227,6 @@ public class JiraClient {
             .header("Authorization", authHeader)
             .header("Accept", CONTENT_TYPE_JSON)
             .header("User-Agent", "qa-core/1.0");
-    }
-
-    private void ensureSuccess(HttpResponse<String> response, String errorMessage) {
-        int statusCode = response.statusCode();
-        if (statusCode < 200 || statusCode >= 300) {
-            LoggerUtil.getLogger(JiraClient.class).error("Jira API responded with status {} and body {}", statusCode, response.body());
-            throw new JiraException(errorMessage + ": " + statusCode);
-        }
     }
 
     private static String urlEncode(String value) {
