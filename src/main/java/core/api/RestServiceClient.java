@@ -32,6 +32,23 @@ import io.restassured.specification.RequestSpecification;
 public class RestServiceClient {
 
     private static final Logger LOGGER = LoggerUtil.getLogger(RestServiceClient.class);
+    private static final String BOX_TOP =
+            "+========================================================================================+";
+    private static final String BOX_DIVIDER =
+            "+----------------------------------------------------------------------------------------+";
+    private static final String BOX_SECTION =
+            "|----------------------------------------------------------------------------------------|";
+    private static final String BOX_BOTTOM =
+            "+========================================================================================+";
+    private static final String ALERT_TOP =
+            "+========================================================================================+";
+    private static final String ALERT_HEADER =
+            "|>>>>>>>>>>>>>>>>>>>>>>>>>>>>  VALIDACIÓN FALLIDA DETECTADA  <<<<<<<<<<<<<<<<<<<<<<<<<<<<|";
+    private static final String ALERT_DIVIDER =
+            "+----------------------------------------------------------------------------------------+";
+    private static final String ALERT_BOTTOM =
+            "+========================================================================================+";
+    private static final int PREVIEW_LIMIT = 180;
 
     private final RequestSpecBuilder specBuilder = new RequestSpecBuilder();
     private final Map<String, String> requestHeaders = new LinkedHashMap<>();
@@ -322,6 +339,11 @@ public class RestServiceClient {
         Response current = ensureResponse();
         int actual = current.getStatusCode();
         if (actual != expectedStatus) {
+            LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+            details.put("Petición", requestSummary());
+            details.put("Status esperado", expectedStatus);
+            details.put("Status recibido", actual);
+            logAssertionFailure("Código de respuesta inesperado", details);
             throw new AssertionError(String.format("Código de respuesta esperado %d pero fue %d", expectedStatus, actual));
         }
         LOGGER.info("Validación exitosa de código de respuesta esperado={} actual={}", expectedStatus, actual);
@@ -338,6 +360,11 @@ public class RestServiceClient {
         Response current = ensureResponse();
         String body = current.getBody().asString();
         if (!body.contains(expectedText)) {
+            LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+            details.put("Petición", requestSummary());
+            details.put("Texto esperado", expectedText);
+            details.put("Body recibido", abbreviate(body));
+            logAssertionFailure("Body sin texto esperado", details);
             throw new AssertionError("El cuerpo de la respuesta no contiene el texto esperado: " + expectedText);
         }
         LOGGER.info("Validación exitosa del contenido esperado en la respuesta (texto buscado='{}')", expectedText);
@@ -354,6 +381,12 @@ public class RestServiceClient {
     public RestServiceClient validateJsonPathEquals(String jsonPath, Object expected) {
         Object actual = extractJsonPath(jsonPath, Object.class);
         if (!Objects.equals(actual, expected)) {
+            LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+            details.put("Petición", requestSummary());
+            details.put("jsonPath", jsonPath);
+            details.put("Valor esperado", expected);
+            details.put("Valor recibido", actual);
+            logAssertionFailure("Valor JSON inesperado", details);
             throw new AssertionError(String.format("Valor esperado en '%s' era '%s' pero fue '%s'", jsonPath, expected, actual));
         }
         LOGGER.info("Validación exitosa para jsonPath '{}' con valor '{}'", jsonPath, actual);
@@ -386,6 +419,12 @@ public class RestServiceClient {
                 throw new IllegalStateException("Comparador no soportado: " + comparator);
         }
         if (!valid) {
+            LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+            details.put("Petición", requestSummary());
+            details.put("Comparación", comparator);
+            details.put("Objetivo (ms)", target);
+            details.put("Observado (ms)", elapsed);
+            logAssertionFailure("Tiempo de respuesta fuera de rango", details);
             throw new AssertionError(String.format("Tiempo de respuesta %d ms no cumple con la condición %s %d ms", elapsed,
                     comparator, target));
         }
@@ -481,6 +520,11 @@ public class RestServiceClient {
     public RestServiceClient validateQueryEmpty(String sql, Object... params) {
         List<Map<String, Object>> results = executeQuery(sql, params);
         if (!results.isEmpty()) {
+            LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+            details.put("Consulta", abbreviate(sql));
+            details.put("Parámetros", formatParams(params));
+            details.put("Registros devueltos", results.size());
+            logAssertionFailure("La consulta debía retornar vacío", details);
             throw new AssertionError("La consulta retornó resultados cuando se esperaba vacío");
         }
         LOGGER.info("Validación exitosa: la consulta '{}' no retornó registros", sql);
@@ -525,32 +569,108 @@ public class RestServiceClient {
     }
 
     private void logRequest() {
-        LOGGER.info("===>> Solicitud REST [{}] {}", method, url);
-        LOGGER.info("Headers request: {}", requestHeaders.isEmpty() ? "{}" : requestHeaders);
-        LOGGER.info("Query params: {}", requestQueryParams.isEmpty() ? "{}" : requestQueryParams);
-        LOGGER.info("Path params: {}", requestPathParams.isEmpty() ? "{}" : requestPathParams);
-        LOGGER.info("Cookies request: {}", requestCookies.isEmpty() ? "{}" : requestCookies);
-        LOGGER.info("Body request: {}", requestBodyDescription != null ? requestBodyDescription :
-                (requestBody == null ? "<sin cuerpo>" : requestBody));
+        LOGGER.info(BOX_TOP);
+        logLine("INICIO SERVICIO", String.format("[%s] %s", method, url));
+        LOGGER.info(BOX_DIVIDER);
+        logLine("Headers", requestHeaders.isEmpty() ? "{}" : requestHeaders);
+        logLine("Query params", requestQueryParams.isEmpty() ? "{}" : requestQueryParams);
+        logLine("Path params", requestPathParams.isEmpty() ? "{}" : requestPathParams);
+        logLine("Cookies", requestCookies.isEmpty() ? "{}" : requestCookies);
+        Object bodyRepresentation = requestBodyDescription != null ? requestBodyDescription
+                : (requestBody == null ? "<sin cuerpo>" : requestBody);
+        logLine("Body", bodyRepresentation);
         if (!requestFormParams.isEmpty()) {
-            LOGGER.info("Form params: {}", requestFormParams);
+            logLine("Form params", requestFormParams);
         }
         if (!requestMultiparts.isEmpty()) {
-            LOGGER.info("Partes multipart: {}", requestMultiparts);
+            logLine("Multipart", requestMultiparts);
         }
-        LOGGER.info("Redirecciones habilitadas: {}", followRedirects);
+        logLine("Redirecciones", followRedirects);
     }
 
     private void logResponse(long elapsedMillis) {
-        LOGGER.info("<<== Respuesta HTTP status={} ({}) ms", response.getStatusCode(), elapsedMillis);
-        LOGGER.info("Headers response: {}", response.getHeaders().asList());
-        LOGGER.info("Cookies response: {}", response.getCookies());
+        LOGGER.info(BOX_SECTION);
+        logLine("FIN SERVICIO", String.format("[%s] %s", method, url));
+        LOGGER.info(BOX_DIVIDER);
+        logLine("STATUS", String.format("%d | %d ms", response.getStatusCode(), elapsedMillis));
+        logLine("Headers", response.getHeaders().asList());
+        logLine("Cookies", response.getCookies());
         try {
-            String pretty = response.getBody() != null ? response.getBody().asPrettyString() : "<sin cuerpo>";
-            LOGGER.info("Body response:\n{}", pretty);
+            String body = response.getBody() != null ? response.getBody().asString() : "<sin cuerpo>";
+            logLine("Body", toSingleLine(body));
         } catch (Exception ex) {
             LOGGER.warn("No fue posible formatear el cuerpo de la respuesta", ex);
         }
+        LOGGER.info(BOX_BOTTOM);
+    }
+
+    private void logLine(String label, Object value) {
+        String paddedLabel = String.format("%-15s", label);
+        LOGGER.info("| {} : {}", paddedLabel, toSingleLine(value));
+    }
+
+    private void logAssertionFailure(String failureTitle, LinkedHashMap<String, Object> details) {
+        LOGGER.error(ALERT_TOP);
+        LOGGER.error(ALERT_HEADER);
+        LOGGER.error(ALERT_DIVIDER);
+        logFailureLine("Validación", failureTitle);
+        if (details != null && !details.isEmpty()) {
+            LOGGER.error(ALERT_DIVIDER);
+            details.forEach(this::logFailureLine);
+        }
+        StackTraceElement origin = resolveFailureOrigin();
+        if (origin != null) {
+            LOGGER.error(ALERT_DIVIDER);
+            logFailureLine("Ubicación", formatLocation(origin));
+        }
+        LOGGER.error(ALERT_BOTTOM);
+    }
+
+    private void logFailureLine(String label, Object value) {
+        String paddedLabel = String.format("%-20s", label);
+        LOGGER.error("| {} : {}", paddedLabel, toSingleLine(value));
+    }
+
+    private StackTraceElement resolveFailureOrigin() {
+        String thisClass = RestServiceClient.class.getName();
+        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
+        for (StackTraceElement element : stack) {
+            String className = element.getClassName();
+            if (className.equals(thisClass) || className.startsWith("java.lang") || className.startsWith("jdk.internal")) {
+                continue;
+            }
+            return element;
+        }
+        return null;
+    }
+
+    private String formatLocation(StackTraceElement origin) {
+        return origin.getClassName() + "#" + origin.getMethodName() + ":" + origin.getLineNumber();
+    }
+
+    private String requestSummary() {
+        String httpMethod = method != null ? method.name() : "<sin método>";
+        String endpoint = url != null ? url : "<sin url>";
+        return httpMethod + " " + endpoint;
+    }
+
+    private String abbreviate(Object value) {
+        String text = toSingleLine(value);
+        if (text.length() <= PREVIEW_LIMIT) {
+            return text;
+        }
+        return text.substring(0, PREVIEW_LIMIT - 3) + "...";
+    }
+
+    private String toSingleLine(Object value) {
+        if (value == null) {
+            return "<null>";
+        }
+        String text = String.valueOf(value);
+        String collapsed = text.replaceAll("\\s*\r?\n\\s*", " ")
+                .replaceAll("\\s{2,}", " ")
+                .trim();
+        return collapsed.isEmpty() ? "<vacío>" : collapsed;
     }
 
     private String formatParams(Object... params) {
