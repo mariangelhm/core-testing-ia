@@ -119,7 +119,7 @@ public final class StructuredLog {
         String collapsed = text.replaceAll("\\s*\\r?\\n\\s*", " ")
                 .replaceAll("\\s{2,}", " ")
                 .trim();
-        return collapsed.isEmpty() ? "<vacío>" : collapsed;
+        return collapsed.isEmpty() ? "<vac\u00EDo>" : collapsed;
     }
 
     /**

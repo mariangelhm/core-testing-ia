@@ -81,7 +81,7 @@ public final class TestReporter {
             throw new ReportException("Unable to generate report '" + reportName + "'", e);
         }
 
-        StructuredLog.Block block = StructuredLog.open(LOGGER, "REPORTERÍA", reportName);
+        StructuredLog.Block block = StructuredLog.open(LOGGER, "REPORTER\u00CDA", reportName);
         block.line("Archivo", reportFile.toAbsolutePath());
         block.line("Casos", builder.caseCount());
         if (!builder.metadata().isEmpty()) {

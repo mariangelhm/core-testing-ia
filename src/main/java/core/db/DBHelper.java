@@ -82,7 +82,7 @@ public class DBHelper implements AutoCloseable {
     public List<Map<String, Object>> select(String sql, Object... params) {
         StructuredLog.Block block = StructuredLog.open(LOGGER, "BASE DE DATOS", "SELECT");
         block.line("SQL", sql);
-        block.line("Parámetros", Arrays.toString(params));
+        block.line("Par\u00E1metros", Arrays.toString(params));
         long start = System.nanoTime();
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = prepareStatement(connection, sql, params);
@@ -105,7 +105,7 @@ public class DBHelper implements AutoCloseable {
         } catch (SQLException e) {
             block.section("ERROR");
             block.error("SQLState", e.getSQLState());
-            block.error("Código", e.getErrorCode());
+            block.error("C\u00F3digo", e.getErrorCode());
             block.error("Mensaje", e.getMessage());
             block.close(String.format(Locale.ROOT, "SELECT con error | %s",
                     StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
@@ -124,10 +124,10 @@ public class DBHelper implements AutoCloseable {
         LOGGER.debug("selectFirst() invocado para SQL {}", sql);
         List<Map<String, Object>> results = select(sql, params);
         if (results.isEmpty()) {
-            LOGGER.info("selectFirst() no encontró resultados para SQL {}", sql);
+            LOGGER.info("selectFirst() no encontr\u00F3 resultados para SQL {}", sql);
             return null;
         }
-        LOGGER.info("selectFirst() retornó la primera fila para SQL {}", sql);
+        LOGGER.info("selectFirst() retorn\u00F3 la primera fila para SQL {}", sql);
         return results.get(0);
     }
 
@@ -143,11 +143,11 @@ public class DBHelper implements AutoCloseable {
         LOGGER.debug("selectValue() invocado para SQL {}", sql);
         Map<String, Object> firstRow = selectFirst(sql, params);
         if (firstRow == null) {
-            LOGGER.info("selectValue() no encontró valor para SQL {}", sql);
+            LOGGER.info("selectValue() no encontr\u00F3 valor para SQL {}", sql);
             return null;
         }
         if (firstRow.isEmpty()) {
-            LOGGER.warn("selectValue() encontró fila vacía para SQL {}", sql);
+            LOGGER.warn("selectValue() encontr\u00F3 fila vac\u00EDa para SQL {}", sql);
             return null;
         }
         @SuppressWarnings("unchecked")
@@ -165,7 +165,7 @@ public class DBHelper implements AutoCloseable {
      * @return cell value from the requested position
      */
     public Object extractValue(List<Map<String, Object>> rows, int rowIndex, String column) {
-        LOGGER.debug("extractValue() invocado - filas: {}, índice: {}, columna: {}",
+        LOGGER.debug("extractValue() invocado - filas: {}, \u00EDndice: {}, columna: {}",
                 rows != null ? rows.size() : 0, rowIndex, column);
         if (rows == null || rows.isEmpty()) {
             throw new DBException("Result set is empty; cannot extract value");
@@ -204,7 +204,7 @@ public class DBHelper implements AutoCloseable {
     public int update(String sql, Object... params) {
         StructuredLog.Block block = StructuredLog.open(LOGGER, "BASE DE DATOS", "UPDATE");
         block.line("SQL", sql);
-        block.line("Parámetros", Arrays.toString(params));
+        block.line("Par\u00E1metros", Arrays.toString(params));
         long start = System.nanoTime();
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = prepareStatement(connection, sql, params)) {
@@ -217,7 +217,7 @@ public class DBHelper implements AutoCloseable {
         } catch (SQLException e) {
             block.section("ERROR");
             block.error("SQLState", e.getSQLState());
-            block.error("Código", e.getErrorCode());
+            block.error("C\u00F3digo", e.getErrorCode());
             block.error("Mensaje", e.getMessage());
             block.close(String.format(Locale.ROOT, "UPDATE con error | %s",
                     StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
@@ -290,7 +290,7 @@ public class DBHelper implements AutoCloseable {
     }
 
     private PreparedStatement prepareStatement(Connection connection, String sql, Object... params) throws SQLException {
-        LOGGER.debug("Preparando PreparedStatement para SQL {} con parámetros {}", sql, Arrays.toString(params));
+        LOGGER.debug("Preparando PreparedStatement para SQL {} con par\u00E1metros {}", sql, Arrays.toString(params));
         PreparedStatement statement = connection.prepareStatement(sql);
         if (params != null) {
             for (int i = 0; i < params.length; i++) {

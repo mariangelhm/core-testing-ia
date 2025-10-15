@@ -75,7 +75,7 @@ public class RestServiceClient {
      */
     public RestServiceClient method(Method method) {
         this.method = Objects.requireNonNull(method, "method must not be null");
-        LOGGER.debug("Método HTTP configurado mediante enum: {}", method);
+        LOGGER.debug("M\u00E9todo HTTP configurado mediante enum: {}", method);
         return this;
     }
 
@@ -88,7 +88,7 @@ public class RestServiceClient {
     public RestServiceClient method(String methodName) {
         Objects.requireNonNull(methodName, "methodName must not be null");
         this.method = Method.valueOf(methodName.trim().toUpperCase(Locale.ROOT));
-        LOGGER.debug("Método HTTP configurado mediante texto: {}", this.method);
+        LOGGER.debug("M\u00E9todo HTTP configurado mediante texto: {}", this.method);
         return this;
     }
 
@@ -160,7 +160,7 @@ public class RestServiceClient {
         specBuilder.setContentType(ContentType.JSON);
         specBuilder.setBody(body);
         this.requestBody = body;
-        this.requestBodyDescription = body == null ? "JSON vacío" : "JSON -> " + body;
+        this.requestBodyDescription = body == null ? "JSON vac\u00EDo" : "JSON -> " + body;
         LOGGER.debug("Body JSON configurado: {}", requestBodyDescription);
         return this;
     }
@@ -223,7 +223,7 @@ public class RestServiceClient {
         specBuilder.setBody(bytes);
         specBuilder.setContentType(contentType);
         this.requestBody = bytes;
-        this.requestBodyDescription = bytes == null ? "Binary vacío" : "Binary -> tamaño=" + bytes.length;
+        this.requestBodyDescription = bytes == null ? "Binary vac\u00EDo" : "Binary -> tama\u00F1o=" + bytes.length;
         LOGGER.debug("Body binario configurado ({} bytes, contentType={})", bytes != null ? bytes.length : 0, contentType);
         return this;
     }
@@ -237,7 +237,7 @@ public class RestServiceClient {
     public RestServiceClient body(Object body) {
         specBuilder.setBody(body);
         this.requestBody = body;
-        this.requestBodyDescription = body == null ? "Body vacío" : "Body -> " + body;
+        this.requestBodyDescription = body == null ? "Body vac\u00EDo" : "Body -> " + body;
         LOGGER.debug("Body configurado: {}", requestBodyDescription);
         return this;
     }
@@ -308,7 +308,7 @@ public class RestServiceClient {
         } catch (RuntimeException ex) {
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
             logBlock.section("ERROR");
-            logBlock.error("Excepción", ex.getMessage());
+            logBlock.error("Excepci\u00F3n", ex.getMessage());
             logBlock.close(String.format(Locale.ROOT, "[%s] %s | error tras %s", method, url,
                     StructuredLog.formatDuration(Duration.ofMillis(elapsedMillis))));
             throw ex;
@@ -334,13 +334,13 @@ public class RestServiceClient {
         int actual = current.getStatusCode();
         if (actual != expectedStatus) {
             LinkedHashMap<String, Object> details = new LinkedHashMap<>();
-            details.put("Petición", requestSummary());
+            details.put("Petici\u00F3n", requestSummary());
             details.put("Status esperado", expectedStatus);
             details.put("Status recibido", actual);
-            logAssertionFailure("Código de respuesta inesperado", details);
-            throw new AssertionError(String.format("Código de respuesta esperado %d pero fue %d", expectedStatus, actual));
+            logAssertionFailure("C\u00F3digo de respuesta inesperado", details);
+            throw new AssertionError(String.format("C\u00F3digo de respuesta esperado %d pero fue %d", expectedStatus, actual));
         }
-        LOGGER.info("Validación exitosa de código de respuesta esperado={} actual={}", expectedStatus, actual);
+        LOGGER.info("Validaci\u00F3n exitosa de c\u00F3digo de respuesta esperado={} actual={}", expectedStatus, actual);
         return this;
     }
 
@@ -355,13 +355,13 @@ public class RestServiceClient {
         String body = current.getBody().asString();
         if (!body.contains(expectedText)) {
             LinkedHashMap<String, Object> details = new LinkedHashMap<>();
-            details.put("Petición", requestSummary());
+            details.put("Petici\u00F3n", requestSummary());
             details.put("Texto esperado", expectedText);
             details.put("Body recibido", StructuredLog.abbreviate(body));
             logAssertionFailure("Body sin texto esperado", details);
             throw new AssertionError("El cuerpo de la respuesta no contiene el texto esperado: " + expectedText);
         }
-        LOGGER.info("Validación exitosa del contenido esperado en la respuesta (texto buscado='{}')", expectedText);
+        LOGGER.info("Validaci\u00F3n exitosa del contenido esperado en la respuesta (texto buscado='{}')", expectedText);
         return this;
     }
 
@@ -376,14 +376,14 @@ public class RestServiceClient {
         Object actual = extractJsonPath(jsonPath, Object.class);
         if (!Objects.equals(actual, expected)) {
             LinkedHashMap<String, Object> details = new LinkedHashMap<>();
-            details.put("Petición", requestSummary());
+            details.put("Petici\u00F3n", requestSummary());
             details.put("jsonPath", jsonPath);
             details.put("Valor esperado", expected);
             details.put("Valor recibido", actual);
             logAssertionFailure("Valor JSON inesperado", details);
             throw new AssertionError(String.format("Valor esperado en '%s' era '%s' pero fue '%s'", jsonPath, expected, actual));
         }
-        LOGGER.info("Validación exitosa para jsonPath '{}' con valor '{}'", jsonPath, actual);
+        LOGGER.info("Validaci\u00F3n exitosa para jsonPath '{}' con valor '{}'", jsonPath, actual);
         return this;
     }
 
@@ -414,15 +414,15 @@ public class RestServiceClient {
         }
         if (!valid) {
             LinkedHashMap<String, Object> details = new LinkedHashMap<>();
-            details.put("Petición", requestSummary());
-            details.put("Comparación", comparator);
+            details.put("Petici\u00F3n", requestSummary());
+            details.put("Comparaci\u00F3n", comparator);
             details.put("Objetivo (ms)", target);
             details.put("Observado (ms)", elapsed);
             logAssertionFailure("Tiempo de respuesta fuera de rango", details);
-            throw new AssertionError(String.format("Tiempo de respuesta %d ms no cumple con la condición %s %d ms", elapsed,
+            throw new AssertionError(String.format("Tiempo de respuesta %d ms no cumple con la condici\u00F3n %s %d ms", elapsed,
                     comparator, target));
         }
-        LOGGER.info("Validación exitosa del tiempo de respuesta: observado={} ms, condición={} {} ms", elapsed, comparator,
+        LOGGER.info("Validaci\u00F3n exitosa del tiempo de respuesta: observado={} ms, condici\u00F3n={} {} ms", elapsed, comparator,
                 target);
         return this;
     }
@@ -435,7 +435,7 @@ public class RestServiceClient {
      */
     public RestServiceClient validateJsonSchema(Path schemaPath) {
         ensureResponse().then().assertThat().body(JsonSchemaValidator.matchesJsonSchema(schemaPath.toFile()));
-        LOGGER.info("Validación de esquema JSON exitosa usando {}", schemaPath);
+        LOGGER.info("Validaci\u00F3n de esquema JSON exitosa usando {}", schemaPath);
         return this;
     }
 
@@ -450,7 +450,7 @@ public class RestServiceClient {
     public <T> T extractJsonPath(String jsonPath, Class<T> type) {
         Response current = ensureResponse();
         T value = current.jsonPath().getObject(jsonPath, type);
-        LOGGER.debug("Valor extraído de jsonPath '{}': {}", jsonPath, value);
+        LOGGER.debug("Valor extra\u00EDdo de jsonPath '{}': {}", jsonPath, value);
         return value;
     }
 
@@ -462,7 +462,7 @@ public class RestServiceClient {
      */
     public String extractHeader(String name) {
         String value = ensureResponse().getHeader(name);
-        LOGGER.debug("Header de respuesta extraído {}={}", name, value);
+        LOGGER.debug("Header de respuesta extra\u00EDdo {}={}", name, value);
         return value;
     }
 
@@ -474,7 +474,7 @@ public class RestServiceClient {
      */
     public String extractCookie(String name) {
         String value = ensureResponse().getCookie(name);
-        LOGGER.debug("Cookie de respuesta extraída {}={}", name, value);
+        LOGGER.debug("Cookie de respuesta extra\u00EDda {}={}", name, value);
         return value;
     }
 
@@ -487,7 +487,7 @@ public class RestServiceClient {
      */
     public List<Map<String, Object>> executeQuery(String sql, Object... params) {
         ensureDbHelper();
-        LOGGER.info("Ejecutando consulta desde RestServiceClient: {} con parámetros {}", sql, formatParams(params));
+        LOGGER.info("Ejecutando consulta desde RestServiceClient: {} con par\u00E1metros {}", sql, formatParams(params));
         return dbHelper.query(sql, params);
     }
 
@@ -500,7 +500,7 @@ public class RestServiceClient {
      */
     public int executeUpdate(String sql, Object... params) {
         ensureDbHelper();
-        LOGGER.info("Ejecutando actualización desde RestServiceClient: {} con parámetros {}", sql, formatParams(params));
+        LOGGER.info("Ejecutando actualizaci\u00F3n desde RestServiceClient: {} con par\u00E1metros {}", sql, formatParams(params));
         return dbHelper.execute(sql, params);
     }
 
@@ -516,12 +516,12 @@ public class RestServiceClient {
         if (!results.isEmpty()) {
             LinkedHashMap<String, Object> details = new LinkedHashMap<>();
             details.put("Consulta", StructuredLog.abbreviate(sql));
-            details.put("Parámetros", formatParams(params));
+            details.put("Par\u00E1metros", formatParams(params));
             details.put("Registros devueltos", results.size());
-            logAssertionFailure("La consulta debía retornar vacío", details);
-            throw new AssertionError("La consulta retornó resultados cuando se esperaba vacío");
+            logAssertionFailure("La consulta deb\u00EDa retornar vac\u00EDo", details);
+            throw new AssertionError("La consulta retorn\u00F3 resultados cuando se esperaba vac\u00EDo");
         }
-        LOGGER.info("Validación exitosa: la consulta '{}' no retornó registros", sql);
+        LOGGER.info("Validaci\u00F3n exitosa: la consulta '{}' no retorn\u00F3 registros", sql);
         return this;
     }
 
@@ -540,7 +540,7 @@ public class RestServiceClient {
         }
         Map<String, Object> firstRow = results.get(0);
         Object value = firstRow.get(columnName);
-        LOGGER.debug("Valor extraído de la consulta '{}' columna '{}': {}", sql, columnName, value);
+        LOGGER.debug("Valor extra\u00EDdo de la consulta '{}' columna '{}': {}", sql, columnName, value);
         return value;
     }
 
@@ -595,20 +595,20 @@ public class RestServiceClient {
     }
 
     private void logAssertionFailure(String failureTitle, LinkedHashMap<String, Object> details) {
-        StructuredLog.Alert alert = StructuredLog.openAlert(LOGGER, "VALIDACIÓN FALLIDA DETECTADA");
-        alert.line("Validación", failureTitle);
-        if (details != null && !details.containsKey("Petición")) {
-            alert.line("Petición", requestSummary());
+        StructuredLog.Alert alert = StructuredLog.openAlert(LOGGER, "VALIDACI\u00D3N FALLIDA DETECTADA");
+        alert.line("Validaci\u00F3n", failureTitle);
+        if (details != null && !details.containsKey("Petici\u00F3n")) {
+            alert.line("Petici\u00F3n", requestSummary());
         }
         if (details != null) {
             details.forEach(alert::line);
         }
         StackTraceElement origin = resolveFailureOrigin();
         if (origin != null) {
-            alert.section("UBICACIÓN");
+            alert.section("UBICACI\u00D3N");
             alert.line("Clase", origin.getClassName());
-            alert.line("Método", origin.getMethodName());
-            alert.line("Línea", origin.getLineNumber());
+            alert.line("M\u00E9todo", origin.getMethodName());
+            alert.line("L\u00EDnea", origin.getLineNumber());
         }
         alert.close();
     }
@@ -627,7 +627,7 @@ public class RestServiceClient {
     }
 
     private String requestSummary() {
-        String httpMethod = method != null ? method.name() : "<sin método>";
+        String httpMethod = method != null ? method.name() : "<sin m\u00E9todo>";
         String endpoint = url != null ? url : "<sin url>";
         return httpMethod + " " + endpoint;
     }

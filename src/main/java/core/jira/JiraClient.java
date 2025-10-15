@@ -198,7 +198,7 @@ public class JiraClient {
             Thread.currentThread().interrupt();
             Duration duration = Duration.ofNanos(System.nanoTime() - start);
             block.section("ERROR");
-            block.error("Interrupción", e.getMessage());
+            block.error("Interrupci\u00F3n", e.getMessage());
             block.close(String.format(Locale.ROOT, "%s | interrumpido tras %s", summary,
                     StructuredLog.formatDuration(duration)));
             StructuredLog.openAlert(LOGGER, errorMessage)
@@ -209,7 +209,7 @@ public class JiraClient {
         } catch (IOException e) {
             Duration duration = Duration.ofNanos(System.nanoTime() - start);
             block.section("ERROR");
-            block.error("Excepción", e.getMessage());
+            block.error("Excepci\u00F3n", e.getMessage());
             block.close(String.format(Locale.ROOT, "%s | error tras %s", summary,
                     StructuredLog.formatDuration(duration)));
             StructuredLog.openAlert(LOGGER, errorMessage)

@@ -182,7 +182,7 @@ public class JenkinsClient {
         } catch (IOException e) {
             Duration duration = Duration.ofNanos(System.nanoTime() - start);
             block.section("ERROR");
-            block.error("Excepción", e.getMessage());
+            block.error("Excepci\u00F3n", e.getMessage());
             block.close(String.format(Locale.ROOT, "%s | error tras %s", summary,
                     StructuredLog.formatDuration(duration)));
             StructuredLog.openAlert(LOGGER, errorMessage)

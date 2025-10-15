@@ -66,8 +66,8 @@ public final class RandomDataUtil {
     public static int randomInt(int min, int max) {
         int value = RANDOM.nextInt((max - min) + 1) + min;
         logGeneration("ENTERO", new String[][] {
-                { "Mínimo", String.valueOf(min) },
-                { "Máximo", String.valueOf(max) },
+                { "M\u00EDnimo", String.valueOf(min) },
+                { "M\u00E1ximo", String.valueOf(max) },
                 { "Resultado", String.valueOf(value) }
         });
         return value;
