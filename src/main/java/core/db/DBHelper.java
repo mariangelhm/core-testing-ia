@@ -5,10 +5,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -19,6 +21,7 @@ import com.zaxxer.hikari.HikariDataSource;
 
 import core.errors.DBException;
 import core.log.LoggerUtil;
+import core.log.StructuredLog;
 
 /**
  * Simplified database helper powered by HikariCP to share connection logic across services.
@@ -77,7 +80,10 @@ public class DBHelper implements AutoCloseable {
      * @return list of rows represented as column-value maps
      */
     public List<Map<String, Object>> select(String sql, Object... params) {
-        LOGGER.info("Ejecutando SELECT: {} con parámetros {}", sql, Arrays.toString(params));
+        StructuredLog.Block block = StructuredLog.open(LOGGER, "BASE DE DATOS", "SELECT");
+        block.line("SQL", sql);
+        block.line("Parámetros", Arrays.toString(params));
+        long start = System.nanoTime();
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = prepareStatement(connection, sql, params);
              ResultSet resultSet = statement.executeQuery()) {
@@ -91,10 +97,18 @@ public class DBHelper implements AutoCloseable {
                 }
                 results.add(row);
             }
-            LOGGER.info("SELECT finalizado: {} filas devueltas", results.size());
+            block.section("RESULTADO");
+            block.line("Filas", results.size());
+            block.close(String.format(Locale.ROOT, "SELECT completado | %s",
+                    StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
             return results;
         } catch (SQLException e) {
-            LOGGER.error("Error ejecutando SELECT {}", sql, e);
+            block.section("ERROR");
+            block.error("SQLState", e.getSQLState());
+            block.error("Código", e.getErrorCode());
+            block.error("Mensaje", e.getMessage());
+            block.close(String.format(Locale.ROOT, "SELECT con error | %s",
+                    StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
             throw new DBException("Error executing query", e);
         }
     }
@@ -188,14 +202,25 @@ public class DBHelper implements AutoCloseable {
      * @return number of affected rows
      */
     public int update(String sql, Object... params) {
-        LOGGER.info("Ejecutando UPDATE: {} con parámetros {}", sql, Arrays.toString(params));
+        StructuredLog.Block block = StructuredLog.open(LOGGER, "BASE DE DATOS", "UPDATE");
+        block.line("SQL", sql);
+        block.line("Parámetros", Arrays.toString(params));
+        long start = System.nanoTime();
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = prepareStatement(connection, sql, params)) {
             int affected = statement.executeUpdate();
-            LOGGER.info("UPDATE finalizado: {} filas afectadas", affected);
+            block.section("RESULTADO");
+            block.line("Filas afectadas", affected);
+            block.close(String.format(Locale.ROOT, "UPDATE completado | %s",
+                    StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
             return affected;
         } catch (SQLException e) {
-            LOGGER.error("Error ejecutando UPDATE {}", sql, e);
+            block.section("ERROR");
+            block.error("SQLState", e.getSQLState());
+            block.error("Código", e.getErrorCode());
+            block.error("Mensaje", e.getMessage());
+            block.close(String.format(Locale.ROOT, "UPDATE con error | %s",
+                    StructuredLog.formatDuration(Duration.ofNanos(System.nanoTime() - start))));
             throw new DBException("Error executing statement", e);
         }
     }

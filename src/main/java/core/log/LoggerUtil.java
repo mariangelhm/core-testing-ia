@@ -13,6 +13,20 @@ import ch.qos.logback.core.Appender;
  */
 public final class LoggerUtil {
 
+    private static final String[] QA_BANNER = {
+            "======================================================================================",
+            "=                                                                                    =",
+            "=                              QA TESTING - LOGS                                     =",
+            "=                                                                                    =",
+            "======================================================================================" };
+
+    static {
+        Logger bannerLogger = LoggerFactory.getLogger("QA TESTING");
+        for (String line : QA_BANNER) {
+            bannerLogger.info(line);
+        }
+    }
+
     private LoggerUtil() {
         // Utility class
     }
