@@ -1,0 +1,5 @@
+login:
+  input_user: "css=input#user"
+  btn_ingresar: "css=#login"
+registro:
+  input_cedula: "xpath=//input[@id='cedula']"

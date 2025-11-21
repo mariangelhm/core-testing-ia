@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: web-testing-ia
+  main:
+    banner-mode: "off"
+logging:
+  level:
+    root: INFO
+    com.example.webtestingia: DEBUG

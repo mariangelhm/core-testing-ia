@@ -1,0 +1,5 @@
+navegador:
+  tipo: chrome
+  modo: local
+  auto_download_drivers: true
+  grid_url: "http://localhost:4444/wd/hub"

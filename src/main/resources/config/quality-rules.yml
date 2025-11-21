@@ -1,0 +1,27 @@
+quality:
+  reglas:
+    - id: R1
+      nombre: "Debe tener al menos un Then"
+      descripcion: "Cada caso debe validar al menos una condición."
+      activo: true
+      peso: 0.25
+    - id: R2
+      nombre: "Nombre descriptivo"
+      descripcion: "El escenario debe describir claramente lo que prueba."
+      activo: true
+      peso: 0.15
+    - id: R3
+      nombre: "No más de 20 pasos"
+      descripcion: "Escenarios muy largos son difíciles de mantener."
+      activo: false
+      peso: 0.10
+    - id: R4
+      nombre: "Debe tener al menos una validación Then"
+      descripcion: "Evita casos sin aserciones."
+      activo: true
+      peso: 0.25
+    - id: R5
+      nombre: "Uso consistente de Given/When/Then"
+      descripcion: "Buen estilo Gherkin."
+      activo: true
+      peso: 0.25

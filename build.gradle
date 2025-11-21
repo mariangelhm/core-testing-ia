@@ -1,94 +1,66 @@
-import java.util.Locale
-
 plugins {
-    id 'java-library'
-    id 'maven-publish'
+    id 'java'
+    id 'org.springframework.boot' version '3.2.5'
+    id 'io.spring.dependency-management' version '1.1.4'
 }
+
+group = 'com.example'
+version = '0.1.0'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
-    withSourcesJar()
-    withJavadocJar()
 }
-
-def verifyJava17 = tasks.register("verifyJava17") {
-    doLast {
-        if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_17)) {
-            throw new GradleException("qa-core requiere JDK 17 o superior. JAVA_HOME actual: ${System.getProperty('java.home')}")
-        }
-    }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.release = 17
-    dependsOn(verifyJava17)
-}
-
-group = 'com.company.qa'
-version = '1.0.2'
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    api 'org.slf4j:slf4j-api:2.0.12'
-    implementation 'ch.qos.logback:logback-classic:1.4.14'
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
-    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.16.1'
-    implementation 'com.fasterxml.jackson.core:jackson-core:2.16.1'
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    implementation 'com.zaxxer:HikariCP:5.1.0'
-    implementation 'org.postgresql:postgresql:42.7.1'
-    implementation 'io.rest-assured:rest-assured:5.4.0'
-    implementation 'io.rest-assured:json-schema-validator:5.4.0'
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-json'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.apache.commons:commons-lang3:3.14.0'
+    implementation 'org.apache.commons:commons-collections4:4.4'
+    implementation 'org.yaml:snakeyaml:2.2'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
+    implementation 'org.seleniumhq.selenium:selenium-java:4.19.1'
+    implementation 'io.github.bonigarcia:webdrivermanager:5.7.0'
+    implementation 'io.cucumber:cucumber-java:7.16.1'
+    implementation 'io.cucumber:cucumber-spring:7.16.1'
+    implementation 'io.cucumber:cucumber-junit-platform-engine:7.16.1'
+    implementation 'com.company.qa:qa-core:1.0.3'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.cucumber:cucumber-junit:7.16.1'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
 
 tasks.withType(Test) {
     useJUnitPlatform()
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from components.java
-        }
-    }
-    repositories {
-        def githubOwner = project.findProperty("gpr.owner") ?: System.getenv("GITHUB_OWNER")
-        def githubRepo = project.findProperty("gpr.repo") ?: System.getenv("GITHUB_REPO")
-        if (!githubRepo) {
-            def repositoryEnv = System.getenv("GITHUB_REPOSITORY")
-            if (repositoryEnv) {
-                if (repositoryEnv.contains("/")) {
-                    def parts = repositoryEnv.split("/", 2)
-                    githubRepo = parts[1]
-                    if (!githubOwner) {
-                        githubOwner = parts[0]
-                    }
-                } else {
-                    githubRepo = repositoryEnv
-                }
-            }
-        }
-        def publishRequested = gradle.startParameter.taskNames.any { it.toLowerCase(Locale.ROOT).contains("publish") }
-        if (!githubOwner || !githubRepo) {
-            if (publishRequested) {
-                throw new GradleException("Configura gpr.owner/gpr.repo o exporta GITHUB_OWNER y GITHUB_REPOSITORY antes de publicar qa-core")
-            } else {
-                logger.info("GitHub Packages repository not configured; set gpr.owner/gpr.repo to enable publishing.")
-                return
-            }
-        }
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/${githubOwner}/${githubRepo}")
-            credentials {
-                username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_USERNAME") ?: githubOwner
-                password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
-            }
-        }
+tasks.register('runCucumber', JavaExec) {
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'io.cucumber.core.cli.Main'
+
+    def tags = project.findProperty('cucumber.tags') ?: ''
+
+    args = [
+            '--plugin', 'pretty',
+            '--plugin', 'json:build/cucumber.json',
+            '--plugin', 'junit:build/cucumber.xml',
+            '--glue', 'com.example.webtestingia.steps',
+            '--glue', 'com.example.webtestingia.hooks',
+            'src/test/resources/features'
+    ]
+
+    if (tags) {
+        args += ['--tags', tags]
     }
 }

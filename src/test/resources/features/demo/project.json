@@ -1,0 +1,9 @@
+{
+  "id": "demo-id",
+  "nombre": "Proyecto Demo",
+  "codigoJira": "DEMO",
+  "tipo": "WEB",
+  "autor": "Equipo QA",
+  "editor": "Equipo QA",
+  "casos": []
+}
